@@ -1,6 +1,7 @@
 from keras.layers import Dense, Dropout, Concatenate, Input
 from keras.layers import Add, Maximum, Average, Subtract, Lambda
 from keras.models import Model
+from models.attention import IRNAttention
 
 from keras import initializers
 
@@ -133,8 +134,19 @@ def fuse_rel_models(fuse_type, person1_joints, person2_joints, **g_theta_kwargs)
         raise ValueError("Invalid fuse_type:", fuse_type)
     return x
 
-def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints):
+def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints, use_attention=False, use_relations=True):
     g_theta_outs = []
+
+    if not use_relations:
+        for object_i in p1_joints:
+            g_theta_outs.append(g_theta_model([object_i]))
+
+        if use_attention:
+            rel_out = IRNAttention()(g_theta_outs)
+        else:
+            rel_out = Average()(g_theta_outs)
+
+        return rel_out
     
     if rel_type == 'inter' or rel_type == 'p1_p2_all_bidirectional':
         # All joints from person1 connected to all joints of person2, and back
@@ -146,7 +158,7 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints):
                 g_theta_outs.append(g_theta_model([object_i, object_j]))
         rel_out = Average()(g_theta_outs)
     elif rel_type == 'intra' or rel_type == 'indivs':
-        # g_theta_indiv = g_theta(model_name="g_theta_indiv", **g_theta_kwargs)
+
         indiv1_avg = create_relationships('p1_p1_all', g_theta_model, 
             p1_joints, p2_joints)
         
@@ -188,7 +200,10 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints):
             for object_j in p1_joints[idx+1:]:
             # for object_j in p1_joints[idx:]:
                 g_theta_outs.append(g_theta_model([object_i, object_j]))
-        rel_out = Average()(g_theta_outs)
+        if use_attention:
+            rel_out = IRNAttention()(g_theta_outs)
+        else:
+            rel_out = Average()(g_theta_outs)
     elif rel_type == 'p2_p2_all':
         # All joints from person2 connected to all other joints of itself
         rel_out = create_relationships(
@@ -219,6 +234,7 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints):
 
 def create_top(input_top, kernel_init, drop_rate=0, fc_units=[500,100,100], 
         fc_drop=False):
+
     x = Dropout(drop_rate)(input_top)
     
     x = Dense(fc_units[0], activation='relu', kernel_initializer=kernel_init, 
@@ -233,36 +249,66 @@ def create_top(input_top, kernel_init, drop_rate=0, fc_units=[500,100,100],
     return x
 
 def f_phi(num_objs, object_shape, rel_type, kernel_init, fc_units=[500,100,100],
-        drop_rate=0, fuse_type=None, fc_drop=False, **g_theta_kwargs):
-    person1_joints = []
-    person2_joints = []
-    for i in range(num_objs):
-        object_i = Input(shape=object_shape, name="person1_object"+str(i))
-        object_j = Input(shape=object_shape, name="person2_object"+str(i))
-        person1_joints.append(object_i)
-        person2_joints.append(object_j)
-    
-    if fuse_type is None:
+        drop_rate=0, fuse_type=None, fc_drop=False, use_attention=False, use_relations=True, **g_theta_kwargs):
+
+    # For Joint Stream, similar structure except have one object for joint of both individuals
+    # For Temporal stream, have one object per timestep
+    # Object shape should correspond to timesteps * num_people (2) * num_dimension
+    if rel_type == 'joint_stream' or rel_type == 'temp_stream':
+        augmented_stream_objects = []
+
+        for i in range(num_objs): # num_objs = num_joints or num_timesteps
+            augmented_stream_input = Input(shape=object_shape, name="joint_object_"+str(i))
+            augmented_stream_objects.append(augmented_stream_input)
+
+        # G theta does not change, object size does not change
         g_theta_model = g_theta(object_shape, kernel_init=kernel_init, 
-            drop_rate=drop_rate, model_name="g_theta_"+rel_type, **g_theta_kwargs)
-        x = create_relationships(rel_type, g_theta_model, 
-            person1_joints, person2_joints)
+            drop_rate=drop_rate, use_relations=use_relations, model_name="g_theta_"+rel_type, **g_theta_kwargs)
+        
+        # Create relationships between all joint stream objects (similar to intra)
+        x = create_relationships('p1_p1_all', g_theta_model, 
+            augmented_stream_objects, None, use_attention=use_attention, use_relations=use_relations)
+
+        # Top of network f model    
+        out_f_phi = create_top(x, kernel_init, fc_units=fc_units, drop_rate=drop_rate,
+            fc_drop=fc_drop)
+        
+        f_phi_ins = augmented_stream_objects
+        model = Model(inputs=f_phi_ins, outputs=out_f_phi, name="f_phi")
+        
+        return model        
+
     else:
-        x = fuse_rel_models(fuse_type, person1_joints, person2_joints,
-            object_shape=object_shape, kernel_init=kernel_init, 
-            drop_rate=drop_rate, **g_theta_kwargs)
-    
-    
-    out_f_phi = create_top(x, kernel_init, fc_units=fc_units, drop_rate=drop_rate,
-        fc_drop=fc_drop)
-    
-    f_phi_ins = person1_joints + person2_joints
-    model = Model(inputs=f_phi_ins, outputs=out_f_phi, name="f_phi")
-    
-    return model
+        person1_joints = []
+        person2_joints = []
+
+        for i in range(num_objs):
+            object_i = Input(shape=object_shape, name="person1_object"+str(i))
+            object_j = Input(shape=object_shape, name="person2_object"+str(i))
+            person1_joints.append(object_i)
+            person2_joints.append(object_j)
+        
+        if fuse_type is None:
+            g_theta_model = g_theta(object_shape, kernel_init=kernel_init, 
+                drop_rate=drop_rate, use_relations=use_relations, model_name="g_theta_"+rel_type, **g_theta_kwargs)
+            x = create_relationships(rel_type, g_theta_model,
+                person1_joints, person2_joints, use_attention=use_attention)
+        else:
+            x = fuse_rel_models(fuse_type, person1_joints, person2_joints,
+                object_shape=object_shape, kernel_init=kernel_init, 
+                drop_rate=drop_rate, **g_theta_kwargs)
+        
+        
+        out_f_phi = create_top(x, kernel_init, fc_units=fc_units, drop_rate=drop_rate,
+            fc_drop=fc_drop)
+        
+        f_phi_ins = person1_joints + person2_joints
+        model = Model(inputs=f_phi_ins, outputs=out_f_phi, name="f_phi")
+        
+        return model
 
 def g_theta(object_shape, kernel_init, drop_rate=0, fc_drop=False, compute_distance=False, 
-        compute_motion=False, model_name="g_theta", num_dim=None, overhead=None):
+        compute_motion=False, use_relations=True, model_name="g_theta", num_dim=None, overhead=None):
     if compute_motion or compute_distance:
         timesteps = (object_shape[0]-overhead)//num_dim
     def euclideanDistance(inputs):
@@ -284,9 +330,12 @@ def g_theta(object_shape, kernel_init, drop_rate=0, fc_drop=False, compute_dista
         return output
     
     object_i = Input(shape=object_shape, name="object_i")
-    object_j = Input(shape=object_shape, name="object_j")
+    g_theta_inputs = object_i
+
+    if use_relations:
+        object_j = Input(shape=object_shape, name="object_j")
+        g_theta_inputs = [object_i, object_j]
     
-    g_theta_inputs = [object_i, object_j]
     if compute_distance:
         distances = Lambda(euclideanDistance, 
             output_shape=lambda inp_shp: (inp_shp[0][0], timesteps),
@@ -299,7 +348,10 @@ def g_theta(object_shape, kernel_init, drop_rate=0, fc_drop=False, compute_dista
             name=model_name+'_motionMerge')([object_i, object_j])
         g_theta_inputs.append(motions)
         
-    x = Concatenate()(g_theta_inputs)
+    if use_relations:
+        x = Concatenate()(g_theta_inputs)
+    else:
+        x = g_theta_inputs
     
     x = Dense(1000, activation='relu', kernel_initializer=kernel_init,
         name=model_name+"_fc1")(x)
@@ -314,32 +366,36 @@ def g_theta(object_shape, kernel_init, drop_rate=0, fc_drop=False, compute_dista
         name=model_name+"_fc4")(x)
         # name="g_theta_fc4")(x)
     
-    model = Model(inputs=[object_i, object_j], outputs=out_g_theta, name=model_name)
+    if use_relations:
+        model = Model(inputs=[object_i, object_j], outputs=out_g_theta, name=model_name)
+    else:
+        model = Model(inputs=[object_i], outputs=out_g_theta, name=model_name)
     
     return model
 
-def fuse_rn(num_objs, object_shape, output_size, train_kwargs,
-        models_kwargs, weights_filepaths, freeze_g_theta=False, fuse_at_fc1=False):
-    
+def fuse_rn(output_size, new_arch, train_kwargs,
+        models_kwargs, weights_filepaths, freeze_g_theta=False, fuse_at_fc1=False, avg_at_end=False):
+
     prunned_models = []
     for model_kwargs, weights_filepath in zip(models_kwargs, weights_filepaths):
-        model = get_model(num_objs=num_objs, object_shape=object_shape, 
-            output_size=output_size, **model_kwargs)
+        model = get_model(output_size=output_size, **model_kwargs)
         if weights_filepath != []:
             model.load_weights(weights_filepath)
         
-        if not fuse_at_fc1:
+        if not fuse_at_fc1 and not avg_at_end:
             for layer in model.layers[::-1]: # reverse looking for last pool layer
-                if layer.name.startswith(('average','concatenate')):
+                if layer.name.startswith(('average','concatenate','irn_attention')):
                     out_pool = layer.output
                     break
             prunned_model = Model(inputs=model.input, outputs=out_pool)
-        else: # Prune keeping dropout + f_phi_fc1
+        elif fuse_at_fc1: # Prune keeping dropout + f_phi_fc1
             for layer in model.layers[::-1]: # reverse looking for last f_phi_fc1 layer
                 if layer.name.startswith(('f_phi_fc1')):
                     out_f_phi_fc1 = layer.output
                     break
             prunned_model = Model(inputs=model.input, outputs=out_f_phi_fc1)
+        elif avg_at_end:
+            prunned_model = Model(inputs=model.input, outputs=model.output)
         
         if freeze_g_theta:
             for layer in prunned_model.layers: # Freezing model
@@ -355,26 +411,47 @@ def fuse_rn(num_objs, object_shape, output_size, train_kwargs,
     kernel_init = get_kernel_init(kernel_init_type, param=kernel_init_param, 
         seed=kernel_init_seed)
     
-    # Building bottom
-    person1_joints = []
-    person2_joints = []
-    for i in range(num_objs):
-        object_i = Input(shape=object_shape, name="person1_object"+str(i))
-        object_j = Input(shape=object_shape, name="person2_object"+str(i))
-        person1_joints.append(object_i)
-        person2_joints.append(object_j)
-    inputs = person1_joints + person2_joints
+    if new_arch:
+        # Building bottom
+        joint_stream_objects = []
+        temp_stream_objects = []
+
+        for i in range(models_kwargs[0]['num_objs']):
+            obj_joint = Input(shape=models_kwargs[0]['object_shape'], name="joint_stream_object"+str(i))
+            joint_stream_objects.append(obj_joint)
+
+        for i in range(models_kwargs[1]['num_objs']):
+            obj_temp = Input(shape=models_kwargs[1]['object_shape'], name="temp_stream_object"+str(i))
+            temp_stream_objects.append(obj_temp)
+        
+        inputs = joint_stream_objects + temp_stream_objects
+        models_outs = [ prunned_models[0](joint_stream_objects), prunned_models[1](temp_stream_objects) ]
+
+    else:
+        # Building bottom
+        person1_joints = []
+        person2_joints = []
+        for i in range(model_kwargs['num_objs']):
+            object_i = Input(shape=model_kwargs[0]['object_shape'], name="person1_object"+str(i))
+            object_j = Input(shape=model_kwargs[0]['object_shape'], name="person2_object"+str(i))
+            person1_joints.append(object_i)
+            person2_joints.append(object_j)
+        inputs = person1_joints + person2_joints
+        
+        models_outs = [ m(inputs) for m in prunned_models ]
+        
+    if not avg_at_end:
+        x = Concatenate()(models_outs)
+            
+        # Building top and Model
+        top_kwargs = get_relevant_kwargs(model_kwargs, create_top) 
+        x = create_top(x, kernel_init, **top_kwargs)
+        out_rn = Dense(output_size, activation='softmax', 
+            kernel_initializer=kernel_init, name='softmax')(x)
+    else:
+        # Model outputs already include individual soft max
+        out_rn = Average()(models_outs)
     
-    models_outs = [ m(inputs) for m in prunned_models ]
-    
-    x = Concatenate()(models_outs)
-    
-    # Building top and Model
-    top_kwargs = get_relevant_kwargs(model_kwargs, create_top) 
-    x = create_top(x, kernel_init, **top_kwargs)
-    
-    out_rn = Dense(output_size, activation='softmax', 
-        kernel_initializer=kernel_init, name='softmax')(x)
     model = Model(inputs=inputs, outputs=out_rn, name="fused_rel_net")
     
     return model

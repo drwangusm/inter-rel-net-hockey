@@ -88,6 +88,9 @@ class DataGenerator(Sequence):
         return self.num_batches
     
     def __getitem__(self, idx):
+        return self.getSampleData(idx, False)
+
+    def getSampleData(self, idx, new_arch_sample):
         batch_idxs = self.shuffled_idx[
             self.batch_size*idx:self.batch_size*(idx+1)]
         
@@ -109,17 +112,85 @@ class DataGenerator(Sequence):
             batch_y = np.array(batch_y)
         
         if self.shuffle_indiv_order:
-            ### Always swap half of the batch
-            num_joints = len(batch_x)//2
-            p1_joints = list(range(num_joints))
-            p2_joints = list(range(num_joints, num_joints*2))
-            swap_index = sorted(np.random.choice(list(range(batch_y.shape[0])), 
-                batch_y.shape[0]//2, replace=False))
-            batch_x = np.array(batch_x)
-            batch_x[:,swap_index] = np.squeeze(
-                batch_x[p2_joints + p1_joints][:,[swap_index]], axis=1)
+            NUM_PEOPLE = 2
+            NUM_DIM = 3
+
+            if 'arch' in self.data_kwargs and (self.data_kwargs['arch'] == 'joint' or self.data_kwargs['arch'] == 'temp'):
+                # Convert to form (num joints, num samples, timesteps, num people, num dimensions) for joint stream
+                # Convert to form (timesteps, num_samples, num_joints, num_people, num_dimensions) for temporal stream
+                batch_x = batch_x.reshape((batch_x.shape[0], batch_x.shape[1], batch_x.shape[2]//(NUM_PEOPLE*NUM_DIM), NUM_PEOPLE, NUM_DIM))
+                
+                # For half of the samples in the batch, we want to flip the people axis
+                swap_index = np.random.choice(batch_x.shape[1], batch_x.shape[1]//2, replace=False)
+                batch_x[:,swap_index] = np.flip(batch_x[:,swap_index], axis=3)
+
+                # Reshape it to old form
+                batch_x = batch_x.reshape((batch_x.shape[0], batch_x.shape[1], batch_x.shape[2] * batch_x.shape[3] * batch_x.shape[4]))
+
+            elif 'arch' in self.data_kwargs and self.data_kwargs['arch'] == 'joint_temp_fused':
+
+                new_batch_x = []
+                # Iterate over both streams
+                for batch_x_comp in batch_x:
+                    # Convert to form (num joints, num samples, timesteps, num people, num dimensions) for joint stream
+                    # Convert to form (timesteps, num_samples, num_joints, num_people, num_dimensions) for temporal stream
+                    batch_x_comp = batch_x_comp.reshape((batch_x_comp.shape[0], batch_x_comp.shape[1], batch_x_comp.shape[2]//(NUM_PEOPLE*NUM_DIM), NUM_PEOPLE, NUM_DIM))
+                    
+                    # For half of the samples in the batch, we want to flip the people axis
+                    swap_index = np.random.choice(batch_x_comp.shape[1], batch_x_comp.shape[1]//2, replace=False)
+                    batch_x_comp[:,swap_index] = np.flip(batch_x_comp[:,swap_index], axis=3)
+
+                    # Reshape it to old form
+                    batch_x_comp = batch_x_comp.reshape((batch_x_comp.shape[0], batch_x_comp.shape[1], batch_x_comp.shape[2] * batch_x_comp.shape[3] * batch_x_comp.shape[4]))
+                    
+                    batch_x_comp = [ np.array(input) for input in batch_x_comp]
+
+                    # For fused model during training, must append to single list of 25 instead of multiple lists
+                    if new_arch_sample:
+                        new_batch_x.append(batch_x_comp)
+                    else:
+                        new_batch_x += batch_x_comp
+
+                return new_batch_x, batch_y
+
+            else:
+                ### Always swap half of the batch
+                ### Swaps between the P1 joints and the P2 joints
+                # 
+                # In half of samples in batch, switch between who is P1 and P2
+                #
+                # For instance, if 4 joints, dimension batch_x = (4,8)
+                # Dimension batch_y = (8) (num samples)
+                #
+                # >>> batch_x original
+                # array([[ 0,  1,  2,  3,  4,  5,  6,  7],
+                #        [ 8,  9, 10, 11, 12, 13, 14, 15],
+                #        [16, 17, 18, 19, 20, 21, 22, 23],
+                #        [24, 25, 26, 27, 28, 29, 30, 31]])
+                # >>> batch_x new
+                # array([[16,  1, 18,  3, 20, 21,  6,  7],
+                #        [24,  9, 26, 11, 28, 29, 14, 15],
+                #        [ 0, 17,  2, 19,  4,  5, 22, 23],
+                #        [ 8, 25, 10, 27, 12, 13, 30, 31]])
+
+                num_joints = len(batch_x)//2
+                p1_joints = list(range(num_joints))
+                p2_joints = list(range(num_joints, num_joints*2))
+                swap_index = sorted(np.random.choice(list(range(batch_y.shape[0])), 
+                    batch_y.shape[0]//2, replace=False))
+                batch_x = np.array(batch_x)
+                batch_x[:,swap_index] = np.squeeze(
+                    batch_x[p2_joints + p1_joints][:,[swap_index]], axis=1)
                 
         batch_x = [ np.array(input) for input in batch_x]
+        
+        # Must append to single list of 25 for training and validation
+        if 'arch' in self.data_kwargs and self.data_kwargs['arch'] == 'joint_temp_fused' and not new_arch_sample:
+            batch_x[0] = [ np.array(input) for input in batch_x[0]]
+            batch_x[1] = [ np.array(input) for input in batch_x[1]]
+
+            batch_x = batch_x[0] + batch_x[1]
+
         return batch_x, batch_y
     
     def on_epoch_end(self):
