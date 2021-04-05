@@ -263,7 +263,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
         csv_writer = csv.writer(csvfile, delimiter=',')
         for idx, row in enumerate(rows):
             if idx == 0:
-                csv_writer.writerow(list(new_fit_history.keys()))
+                csv_writer.writerow([metric.replace("model_","") for metric in row])
             else:
                 csv_writer.writerow(row)
         csvfile.truncate()
