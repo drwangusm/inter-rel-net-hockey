@@ -17,9 +17,7 @@ class IRNAttention(keras.layers.Layer):
         
         self.layer_1 = keras.layers.Dense(self.projection_size, name="Att1", use_bias=False, activation='tanh')
         self.layer_2 = keras.layers.Dense(self.num_head, name="Att2", use_bias=False, activation=None)
-        self.attention = self.add_weight(name="attention", shape=(len(input_size), self.num_head), trainable=False, initializer='zeros')
-        # self.attention = tf.Variable(initial_value = tf.zeros(len(input_size), self.num_head,), trainable=False)
-        # self.attention = K.variable(tf.zeros([len(input_size), self.num_head]), name="att_weights")
+
         super(IRNAttention, self).build(input_size)
     
     def exp_normalize(self, x):
@@ -61,9 +59,7 @@ class IRNAttention(keras.layers.Layer):
         # (N, W, self.Projection_size) -> (N, W, H)
         out_2 = self.layer_2(out_1)
         # Second dimension, W, will sum to one
-        
-        # att_out = tf.exp(out_2)
-        
+                
         # Adding a small constant to the normalizing factor in case everything
         # is zero
         # (N, W, H)/(N, 1, W, H).sum(dim=2) -> (N, W, H)

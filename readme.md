@@ -1,6 +1,8 @@
 # Interaction Relational Network
 Code used at paper "Interaction Relational Network for Mutual Action Recognition".
 
+See section below for modifications to IRN for Hockey Penalty Dataset.
+
 It contains an implementation of our Interaction Relational Network (IRN), an end-to-end NN tailored for Interaction Recognition using Skeleton information. 
 
 <div align="center">
@@ -146,3 +148,67 @@ LSTM-IRN_intra | 73.6% | 75.2%
 LSTM-IRN-fc1_inter+intra | 77.7% | 79.6%
 
 Obs: Mutual actions only
+
+# IRN Modifications for Hockey Dataset
+
+Several key modifications were made to the original IRN Model. All parameters for these modifications can be set in the `configs` files. Examples of usage can be found in `configs/YMJA`. Additional metrics were added including recall, precision, and F1. 
+## Configuration Options
+If a default option is specified, the model will revert to the default if the option is not specified in the configuration file.
+* `data` section
+	* `arch = 'joint' | 'temp'` - Default: None
+		* This sets the architecture to use the new `joint` objects or `temp` objects. If this is set, the `rel_type` option in the `model` section must be set to `joint_stream` or `temp_stream` respectively. Removing this option can be used to test the original paper's models.
+* `model` section
+	* `rel_type = 'joint_stream' | 'temp_stream'`
+		* This can normally be set to `indivs` for the paper's original models but if `arch` is set above, this also must be set correctly.
+	* `use_attention = True | False` - Default: False
+		* Whether to use attention or not after the _g_ layer. This has only been tested on the `joint_stream` and `temp_stream`.
+	* `use_relations = True | False` - Default: False
+		* Whether to use relations (feed pairs of objects into the _g_ layer). Relations are used by the paper by default. Removing relations basically means that only a single object is fed into each _g_ module instead of a pair of objects.
+	* `projection_size = <Int>` - Default: None
+		* This sets the output size of the first dense layer in the attention module. If it is not specified, the model will set it automatically to the size of the objects inputted. This is only useful with the attention enabled.
+	* `return_attention = True | False` - Default: False
+		* If set to true, the attention vectors are written to in `models/<model>/fold_X/rerun_X/attention.csv`. Each line corresponds to an attention vector for a single prediction generated at the end on the validation set once the model has already been trained. For instance, for the joint attention with no relations, 25 objects will be outputted each representing the attention for a single joint. The `view_att.py` script can be used to generate an average attention vector for each true prediction class. 
+		* To see the order of the objects, (specifically for OpenPose), see `src/misc/data_io.py` and see the `POSE_BODY_25_BODY_PARTS` variable.
+		* It is recommended to use this with `no_relations = False` because otherwise, attention is returned for each pair of objects. 
+* `fusion` section
+	* Make sure to set the `config_filepaths` and `weights_filepahts` variables corectly. Note that the individual streams specified in the config and weight filepaths must be trained _**before**_ training the fused model.
+	* `new_arch = True | False` - Default: None 
+		* For the fused `joint` and `temporal` stream, this should be set to True. Otherwise, for the paper's original fused models, this can be set to false.
+	* `avg_at_end = True | False` - Default: None
+		* If set to true, this does not fuse both streams after the _g_ layer and instead averages the outputs after the _f_ layer.
+		* This has only been tested with the joint and temporal streams.
+## Running the Models
+### YMJA Dataset
+* For all other datasets, follow the author's guide on how to load them. For the YMJA dataset, follow the instructions for how to use the data collection pipeline to generate the JSON files for each clip. Note that the number of timesteps in the configuration file should be set to the number of frames outputted in the last step of the pipeline process. Place the output in `data`. The structure of the directory should look like `data/YMJA/<Penalty Class>/<clip_name>.json`. See the `src/datasets/YMJA.py` for more details.
+* Note that if a model has started running and has finished a run or a fold, the progress will be saved at that fold. If a model has finished training, trying to rerun the script with the specific model name (as the output file) will only print the results from the output file.
+### Running the Scripts
+* Examples for how to run the SBU scripts are in the `run_tests.sh` file and for how to run the YMJA scripts are in the `run_tests_ymja.sh`. Make sure that all dependencies are correctly installed. See the author's guide on which dependencies are required above. Alternatively, use conda to install the dependencies from `requirements.txt` into your environment.
+## Overview of Modifications
+* New Object Streams
+	* There are two new formats for the objects that are inputted into each _g_ module. The `joint` stream groups a single joint from both persons into a single object across all timeframes. For instance, it could include the left elbows of both persons across all frames. Thus, the number of objects is the total number of joints. The `temporal` stream groups all joints for all players within a single frame in a single object. Thus, the number of objects is the total number of frames. 
+	* For more information on the structure of each object, this is set in the `src/misc/data_io.py` at the bottom.
+	* For more information on how the individuals in these objects are shuffled (normally set to true in most configuration files), see `src/datasets/data_generator.py`.
+	* For information on how this affects the structure of the model, see `src/models/rn.py`.
+* Attention Module
+	* The code for this can be found in `src/models/attention.py`. It adds a custom Keras layer which serves as the attention module between the _g_ and _f_ layer. The attention module is applied to each pair of objects at the end of the _g_ layer. This has only been tested on the joint and temporal stream.
+* Averaging at End
+	* The code for this can be found in `src/models/rn.py`. Instead of fusing the individual streams before the _f_ layer, it averages the output of each stream's _f_ layer at the end of the layer. This has only been tested on the joint and temporal stream.
+* No Relations
+	* The code for this can be found in `src/models/rn.py`. Instead of inputting a pair of objects into each `_g_` layer, only individual objects are inputted into the layer. For instance, for the joint stream, this would mean that each object would just be a single joint (for a total of 25 joints). 
+
+## Other Notes
+
+Here are some key modifications made to each file.
+* `src/train_rn.py`
+	* Made modifications to correctly load the configuration files for the joint and temporal stream. Also made modifications to support returning attention and printing the attention to the `attention.csv` file.
+* `src/models/rn.py`
+	* Made modifications to support joint and temporal stream objects and fusion of joint and temporal stream. Add support for attention module and returning attention weights. Made modifications to support when the no relations option is used. Made modifications to support averaging at end. Note that by default, if relations are used with the joint/temporal stream object, the `'p1_p1_all'` relationship is used. This creates relationships between each joint object (joint_i, joint_j) and each temporal object (frame_i, frame_j). 
+* `src/models/attention.py`
+	* New Keras layer for attention module to insert between _g_ and _f_ layer.
+* `src/data_io.py`
+	* This is where the joint and temporal object formats are defined. Modifications are also made to support loading from the YMJA dataset.
+* `src/datasets/YMJA.py`
+	* This file is added to support the YMJA dataset. In this file, the `FOLD_MECH` variable can be set to either `'Uniform'` or `'Random'`. This defines how the folds are created. For Uniform, the five folds are uniformly distributed across the penalty classes. Thus, each fold will have more or less the same distribution. For Random, the fold distributions are selected randomly. All tests that are currently there are run in Uniform mode.
+* `src/datasets/data_generator.py`
+	* Modified shuffling mechanism so that it works on joint stream and temporal stream objects. The shuffling mechanism randomly shuffles the individuals in each batch so person 1 might be randomly switched with person 2 in some samples in each batch. The structure of the objects do not otherwise change (the joints or frames themselves are **NOT** shuffled).
+
