@@ -153,7 +153,7 @@ Obs: Mutual actions only
 
 Several key modifications were made to the original IRN Model. All parameters for these modifications can be set in the `configs` files. Examples of usage can be found in `configs/YMJA`. Additional metrics were added including recall, precision, and F1. 
 ## Configuration Options
-If a default option is specified, the model will revert to the default if the option is not specified in the configuration file.
+The model will revert to the default if the option is not specified in the configuration file.
 * `data` section
 	* `arch = 'joint' | 'temp'` - Default: None
 		* This sets the architecture to use the new `joint` objects or `temp` objects. If this is set, the `rel_type` option in the `model` section must be set to `joint_stream` or `temp_stream` respectively. Removing this option can be used to test the original paper's models.
@@ -162,7 +162,7 @@ If a default option is specified, the model will revert to the default if the op
 		* This can normally be set to `indivs` for the paper's original models but if `arch` is set above, this also must be set correctly.
 	* `use_attention = True | False` - Default: False
 		* Whether to use attention or not after the _g_ layer. This has only been tested on the `joint_stream` and `temp_stream`.
-	* `use_relations = True | False` - Default: False
+	* `use_relations = True | False` - Default: True
 		* Whether to use relations (feed pairs of objects into the _g_ layer). Relations are used by the paper by default. Removing relations basically means that only a single object is fed into each _g_ module instead of a pair of objects.
 	* `projection_size = <Int>` - Default: None
 		* This sets the output size of the first dense layer in the attention module. If it is not specified, the model will set it automatically to the size of the objects inputted. This is only useful with the attention enabled.
@@ -172,9 +172,9 @@ If a default option is specified, the model will revert to the default if the op
 		* It is recommended to use this with `no_relations = False` because otherwise, attention is returned for each pair of objects. 
 * `fusion` section
 	* Make sure to set the `config_filepaths` and `weights_filepahts` variables corectly. Note that the individual streams specified in the config and weight filepaths must be trained _**before**_ training the fused model.
-	* `new_arch = True | False` - Default: None 
+	* `new_arch = True | False` - Default: False 
 		* For the fused `joint` and `temporal` stream, this should be set to True. Otherwise, for the paper's original fused models, this can be set to false.
-	* `avg_at_end = True | False` - Default: None
+	* `avg_at_end = True | False` - Default: False
 		* If set to true, this does not fuse both streams after the _g_ layer and instead averages the outputs after the _f_ layer.
 		* This has only been tested with the joint and temporal streams.
 ## Running the Models
@@ -194,15 +194,18 @@ If a default option is specified, the model will revert to the default if the op
 * Averaging at End
 	* The code for this can be found in `src/models/rn.py`. Instead of fusing the individual streams before the _f_ layer, it averages the output of each stream's _f_ layer at the end of the layer. This has only been tested on the joint and temporal stream.
 * No Relations
-	* The code for this can be found in `src/models/rn.py`. Instead of inputting a pair of objects into each `_g_` layer, only individual objects are inputted into the layer. For instance, for the joint stream, this would mean that each object would just be a single joint (for a total of 25 joints). 
+	* The code for this can be found in `src/models/rn.py`. Instead of inputting a pair of objects into each _g_ layer, only individual objects are inputted into the layer. For instance, for the joint stream, this would mean that each object would just be a single joint (for a total of 25 joints). 
 
 ## Other Notes
 
 Here are some key modifications made to each file.
 * `src/train_rn.py`
 	* Made modifications to correctly load the configuration files for the joint and temporal stream. Also made modifications to support returning attention and printing the attention to the `attention.csv` file.
+	* Made modifications to the way that the `training.log` file is saved for each model/fold_X/rerun_x. The issue arises because of the fact that when we return attention, the model will have two outputs (the original output and the attention weights). This causes Tensorflow to rename the default metrics that are outputted. These metrics however are used in order to identify the best-performing epoch. In order to fix this, we read from the `training.log` file and replace the column names (the metrics) after finishing training.
 * `src/models/rn.py`
-	* Made modifications to support joint and temporal stream objects and fusion of joint and temporal stream. Add support for attention module and returning attention weights. Made modifications to support when the no relations option is used. Made modifications to support averaging at end. Note that by default, if relations are used with the joint/temporal stream object, the `'p1_p1_all'` relationship is used. This creates relationships between each joint object (joint_i, joint_j) and each temporal object (frame_i, frame_j). 
+	* Made modifications to support joint and temporal stream objects and fusion of joint and temporal stream. Add support for attention module and returning attention weights. Made modifications to support when the no relations option is used. Made modifications to support averaging at end. Note that by default, if relations are used with the joint/temporal stream object, the `'p1_p1_all'` relationship is used. This is because we only want relations to be established within the joint or temporal stream objects and not between the joint and temporal stream objects. This is similar in nature to the intra-person relationships from the original model. This creates relationships between each joint object (joint_i, joint_j) and each temporal object (frame_i, frame_j). 
+	* For the no relations option, we do not use any of the relationships and instead input an individual object (joint_i or frame_i) directly into the g_theta layer. 
+	* For the averaging at end option, in the `fuse_rn` method, we do not prune the f-layer (unlike the other fused models). Instead, we keep the f-layer from both models that are being averaged and average the outputs at the end.
 * `src/models/attention.py`
 	* New Keras layer for attention module to insert between _g_ and _f_ layer.
 * `src/data_io.py`
