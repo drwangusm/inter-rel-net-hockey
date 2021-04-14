@@ -201,7 +201,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             use_multiprocessing=True,
             verbose=verbose)
         
-        # Get Y_true values
+        # Get actual Y values for validation fold
         Y_val = []
         for batch_idx in range(len(val_generator)):
             _, y_val = val_generator[batch_idx]
@@ -210,14 +210,15 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
         Y_pred = model.predict_generator(val_generator, max_queue_size=10, workers=5, 
             use_multiprocessing=True, verbose=verbose)
 
-        if return_attention:
+        if return_attention: # Unpack output if necessary
             Y_pred, attention = Y_pred
 
         # Convert back from to_categorical
-        Y_pred = np.argmax(Y_pred, axis=1, out=None).tolist()
-        Y_val = np.argmax(Y_val, axis=1, out=None).tolist()
+        Y_pred = np.argmax(Y_pred, axis=1, out=None).tolist() # Validation predicted data for current fold
+        Y_val = np.argmax(Y_val, axis=1, out=None).tolist() # Validation actual data for current fold
         
         # Write attention info to file
+        # Format of row - (Actual, Predicted, Object_0, Object_1, Object_2, ...)
         if return_attention:
             with open(output_path + '/attention.csv', 'w') as csv_att:
                 csv_att.write("Actual,Predicted")
@@ -244,14 +245,14 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             callbacks=callbacks_list,
             shuffle=True)
     
-    # In case of multiple outputs, will print name with model output that want to remove
+    # In case of multiple outputs, will print metric name with model output that want to remove
     new_fit_history = {}
     for metric in fit_history.history:
         new_metric = metric.replace("model_", "")
         new_fit_history[new_metric] = fit_history.history[metric]
     fit_history.history = new_fit_history
 
-    # Rewrite training.log with correct names
+    # Rewrite training.log with correct names, see readme.md for explanation.
     with open(output_path + '/training.log', 'r+') as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=',')
         rows = []
