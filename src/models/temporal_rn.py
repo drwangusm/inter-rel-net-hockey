@@ -2,6 +2,7 @@ from keras.layers import Dense, Input, Dropout
 from keras.layers import LSTM, TimeDistributed, Lambda, Concatenate, Average
 from keras.models import Model
 from keras import backend as K
+from models.attention import IRNAttention
 
 from . import rn
 
@@ -52,8 +53,21 @@ def average_per_sequence(tensors_list):
     averages_per_seq = K.mean(single_tensor, axis=1)
     return averages_per_seq
 
-def create_relationships(rel_type, g_theta_model, temp_input):
+def create_relationships(rel_type, g_theta_model, temp_input, p1_joints, p2_joints, use_attention=False, use_relations=True, attention_proj_size=None, return_attention=False):
     num_objs = int(temp_input.shape[2])//2
+    g_theta_outs = []
+
+    if not use_relations:
+        for object_i in p1_joints:
+            g_theta_outs.append(g_theta_model([object_i]))
+
+        if use_attention:
+            # Output may be tuple if return_attention is true, second element is attention vector
+            return IRNAttention(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
+        else:
+            rel_out = Average()(g_theta_outs)
+
+        return rel_out
     
     if rel_type == 'inter':
         # All joints from person1 connected to all joints of person2, and back
@@ -130,14 +144,28 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
     
     kernel_init = rn.get_kernel_init(kernel_init_type, param=kernel_init_param, 
         seed=kernel_init_seed)
-    
-    temp_input = Input(shape=((seq_len, num_objs*2,) + object_shape))
-    
-    if lstm_location == 'top': # After f_phi
-        irn_model = get_irn(num_objs, object_shape, prune_at_layer=prune_at_layer, 
-                kernel_init=kernel_init, **irn_kwargs)
+
+    if irn_kwargs['rel_type'] == 'joint_stream':
+
+        temp_input = Input(shape=((seq_len, num_objs,) + object_shape))
+        if lstm_location == 'top': # After f_phi
+            irn_model = get_irn(num_objs, object_shape, prune_at_layer=prune_at_layer,
+                                kernel_init=kernel_init, **irn_kwargs)
+
+        input_irn = Input(shape=((num_objs,)+object_shape))
+        slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs) ])(input_irn)
+        irn_model_out = irn_model(slice)
+        merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+        x = TimeDistributed(merged_irn_model)(temp_input)
+
+    else:
+        temp_input = Input(shape=((seq_len, num_objs*2,) + object_shape))
+        if lstm_location == 'top': # After f_phi
+            irn_model = get_irn(num_objs, object_shape, prune_at_layer=prune_at_layer,
+                    kernel_init=kernel_init, **irn_kwargs)
         
         # Creating model with merged input then slice, to apply TimeDistributed
+
         input_irn = Input(shape=((num_objs*2,)+object_shape))
         slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2) ])(input_irn)
         irn_model_out = irn_model(slice)
@@ -145,48 +173,48 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
         
         # Wrapping merged model with TimeDistributed
         x = TimeDistributed(merged_irn_model)(temp_input)
-    elif lstm_location == 'middle': # Between g_theta and f_phi
-        irn_model = get_irn(num_objs, object_shape, 
-            prune_at_layer=('average','concatenate'), 
-            kernel_init=kernel_init, **irn_kwargs)
-        
-        # Creating model with merged input then slice, to apply TimeDistributed
-        input_irn = Input(shape=((num_objs*2,)+object_shape))
-        slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2) ])(input_irn)
-        irn_model_out = irn_model(slice)
-        merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
-        
-        # Wrapping merged model with TimeDistributed
-        irn_out = TimeDistributed(merged_irn_model)(temp_input)
-        lstm_out = LSTM(256, dropout=drop_rate, return_sequences=True)(irn_out)
-        x = Concatenate()([irn_out, lstm_out])
-        
-        ### Replacing g_theta output - not promising results
-        # lstm_out = LSTM(int(irn_out.shape[-1]), return_sequences=True)(irn_out)
-        # x = lstm_out
-        
-        top_kwargs = rn.get_relevant_kwargs(irn_kwargs, create_timedist_top) 
-        x = create_timedist_top(x, kernel_init, **top_kwargs)
-    elif lstm_location == 'bottom': # At g_theta, after fc layers
-        g_theta_kwargs = rn.get_relevant_kwargs(irn_kwargs, rn.g_theta)
-        g_theta_kwargs['fc_drop'] = irn_kwargs.get('g_fc_drop', False)
-        g_theta_lstm_model = g_theta_lstm(seq_len, object_shape, kernel_init, 
-            drop_rate, **g_theta_kwargs)
-        
-        ### Ensuring back compatibility
-        rel_type = irn_kwargs.get('rel_type')
-        fuse_type = irn_kwargs.get('fuse_type')
-        if rel_type not in ['inter', 'indivs']: # need to translate
-            if fuse_type == 'indiv1_indiv2':
-                rel_type = 'indivs'
-            elif rel_type == 'p1_p2_all_bidirectional':
-                rel_type = 'inter'
-        
-        g_theta_merged_out = create_relationships(rel_type, g_theta_lstm_model, 
-            temp_input)
-        
-        top_kwargs = rn.get_relevant_kwargs(irn_kwargs, create_timedist_top) 
-        x = create_timedist_top(g_theta_merged_out, kernel_init, **top_kwargs)
+    # elif lstm_location == 'middle': # Between g_theta and f_phi
+    #     irn_model = get_irn(num_objs, object_shape,
+    #         prune_at_layer=('average','concatenate'),
+    #         kernel_init=kernel_init, **irn_kwargs)
+    #
+    #     # Creating model with merged input then slice, to apply TimeDistributed
+    #     input_irn = Input(shape=((num_objs*2,)+object_shape))
+    #     slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2) ])(input_irn)
+    #     irn_model_out = irn_model(slice)
+    #     merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+    #
+    #     # Wrapping merged model with TimeDistributed
+    #     irn_out = TimeDistributed(merged_irn_model)(temp_input)
+    #     lstm_out = LSTM(256, dropout=drop_rate, return_sequences=True)(irn_out)
+    #     x = Concatenate()([irn_out, lstm_out])
+    #
+    #     ### Replacing g_theta output - not promising results
+    #     # lstm_out = LSTM(int(irn_out.shape[-1]), return_sequences=True)(irn_out)
+    #     # x = lstm_out
+    #
+    #     top_kwargs = rn.get_relevant_kwargs(irn_kwargs, create_timedist_top)
+    #     x = create_timedist_top(x, kernel_init, **top_kwargs)
+    # elif lstm_location == 'bottom': # At g_theta, after fc layers
+    #     g_theta_kwargs = rn.get_relevant_kwargs(irn_kwargs, rn.g_theta)
+    #     g_theta_kwargs['fc_drop'] = irn_kwargs.get('g_fc_drop', False)
+    #     g_theta_lstm_model = g_theta_lstm(seq_len, object_shape, kernel_init,
+    #         drop_rate, **g_theta_kwargs)
+    #
+    #     ### Ensuring back compatibility
+    #     rel_type = irn_kwargs.get('rel_type')
+    #     fuse_type = irn_kwargs.get('fuse_type')
+    #     if rel_type not in ['inter', 'indivs']: # need to translate
+    #         if fuse_type == 'indiv1_indiv2':
+    #             rel_type = 'indivs'
+    #         elif rel_type == 'p1_p2_all_bidirectional':
+    #             rel_type = 'inter'
+    #
+    #     g_theta_merged_out = create_relationships(rel_type, g_theta_lstm_model,
+    #         temp_input)
+    #
+    #     top_kwargs = rn.get_relevant_kwargs(irn_kwargs, create_timedist_top)
+    #     x = create_timedist_top(g_theta_merged_out, kernel_init, **top_kwargs)
     
     if num_lstms == 2:
         x = LSTM(256, dropout=drop_rate, return_sequences=True)(x)

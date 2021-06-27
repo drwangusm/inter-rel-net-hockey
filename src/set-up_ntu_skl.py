@@ -197,7 +197,7 @@ if __name__ == '__main__':
     
     if not convert:
         if dataset_version == '1':
-            zip_filepath = os.path.join(NTU.DATA_DIR, 'nturgbd_skeletons.zip')
+            zip_filepath = os.path.join(NTU.DATA_DIR, 'nturgbd_skeletons_s001_to_s017.zip')
             out_filepath = os.path.join(NTU.DATA_DIR, 'skl.csv')
             
             if os.path.exists(out_filepath):
@@ -217,7 +217,8 @@ if __name__ == '__main__':
                 if filenames_list[0] == 'nturgb+d_skeletons/':
                     filenames_list.pop(0)
                 
-                progbar = progressbar.ProgressBar(max_value=len(filenames_list))
+                progbar = progressbar.ProgressBar(maxval=len(filenames_list))
+                progbar.start()
                 for idx, filename in enumerate(filenames_list):
                     progbar.update(idx)
                     videoname = filename.split('/')[-1].split('.')[0]
@@ -271,7 +272,8 @@ if __name__ == '__main__':
             with ZipFile(zip_filepath) as zfile, open(out_filepath, 'ab') as out_file:
                 filenames_list = sorted([file_info.filename for file_info in zfile.infolist()])
                 
-                progbar = progressbar.ProgressBar(max_value=len(filenames_list))
+                progbar = progressbar.ProgressBar(maxval=len(filenames_list))
+                progbar.start()
                 for idx, filename in enumerate(filenames_list):
                     progbar.update(idx)
                     videoname = filename.split('.')[0]

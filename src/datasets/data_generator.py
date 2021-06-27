@@ -57,7 +57,7 @@ class DataGenerator(Sequence):
             seqs_mapping_file = 'seqs_mapping-subset_{}-fold_{}-timesteps_{}-{}-seq_step_{}.csv'.format(
                 subset, dataset_fold, data_kwargs['timesteps'],
                 data_kwargs['skip_timesteps'], data_kwargs['seq_step'])
-            seqs_mapping_filepath = dataset.DATA_DIR + '/seqs_mapping/' + seqs_mapping_file
+            seqs_mapping_filepath = dataset.DATA_DIR + 'seqs_mapping/' + seqs_mapping_file
                 
             if os.path.exists(seqs_mapping_filepath):
                 type_index = type(self.ground_truth.index[0])
@@ -247,6 +247,11 @@ class DataGeneratorSeq(Sequence):
         
         self.data_kwargs['flat_seqs'] = False
         self.data_kwargs['sample_method'] = 'all'
+
+        if 'arch' in list(self.data_kwargs.keys()):
+            self.arch = data_kwargs['arch']
+        else:
+            self.arch = None
         
         if  self.data_kwargs.get('seq_step') is None:
             self.data_kwargs['seq_step'] = self.data_kwargs['timesteps']//2
@@ -292,29 +297,30 @@ class DataGeneratorSeq(Sequence):
     
     def __getitem__(self, idx):
         batch_idxs = self.shuffled_idx[
-            self.batch_size*idx:self.batch_size*(idx+1)]
-        
+                     self.batch_size*idx:self.batch_size*(idx+1)]
+
         if not self.buffer_data:
             batch_gt = self.ground_truth.loc[batch_idxs]
-            
-            batch_x, batch_y = get_data(batch_gt, pose_style=self.pose_style, 
-                num_classes=self.num_classes, **self.data_kwargs)
+
+            batch_x, batch_y = get_data(batch_gt, pose_style=self.pose_style,
+                                        num_classes=self.num_classes, **self.data_kwargs)
         else:
             batch_x = [ self.buffer[0][idx] for idx in batch_idxs ]
             batch_y = self.buffer[1][batch_idxs]
-        
-        if self.shuffle_indiv_order:
-            ### Always swap half of the batch
-            num_joints = len(batch_x[0][0])//2
-            p1_joints = list(range(num_joints))
-            p2_joints = list(range(num_joints, num_joints*2))
-            swap_index = sorted(np.random.choice(list(range(batch_y.shape[0])), 
-                batch_y.shape[0]//2, replace=False))
-                
-            for video_swap_id in swap_index:
-                video_seqs = np.array(batch_x[video_swap_id])
-                batch_x[video_swap_id] = video_seqs[:, p2_joints + p1_joints, :]
-        
+
+        ### Always swap half of the batch
+        num_joints = len(batch_x[0][0])//2
+        p1_joints = list(range(num_joints))
+        p2_joints = list(range(num_joints, num_joints*2))
+        swap_index = sorted(np.random.choice(list(range(batch_y.shape[0])),
+            batch_y.shape[0]//2, replace=False))
+
+        #for some random indices we shuffle the order
+        for video_swap_id in swap_index:
+            video_seqs = np.array(batch_x[video_swap_id])
+            batch_x[video_swap_id] = video_seqs[:, p2_joints + p1_joints, :]
+
+        #pad ot max video length in clip
         # Padding sequences
         if self.pad_sequences:
             maxlen = self.maxlen
@@ -328,6 +334,42 @@ class DataGeneratorSeq(Sequence):
                 batch_x[idx] = padded_video_seqs
         
         batch_x = np.array(batch_x)
+
+        if self.arch == 'joint-lstm':
+            timesteps = self.data_kwargs['timesteps']
+            #todo has to match dataset
+            #todo check the order is correct after reshaping and all
+            num_dim = 3
+
+            new_batch_x = np.empty((batch_x.shape[0], batch_x.shape[1], (batch_x.shape[2]//2), (2 * batch_x.shape[3])))
+
+            for batch_member in range(batch_x.shape[0]):
+                window_temp = np.empty((batch_x.shape[1], (batch_x.shape[2]//2), (2 * batch_x.shape[3])))
+                for window in range(batch_x.shape[1]):
+                    p1_joints = batch_x[batch_member, window, 0:batch_x.shape[2]//2, :]
+                    p1_joints = p1_joints.reshape((p1_joints.shape[0], timesteps, num_dim))
+                    # print('***', str(batch_member), str(window))
+                    # print(p1_joints.shape)
+                    p2_joints = batch_x[batch_member, window, batch_x.shape[2]//2:batch_x.shape[2], :]
+                    p2_joints = p2_joints.reshape((p2_joints.shape[0], timesteps, num_dim))
+                    # print(p2_joints.shape)
+                    if p2_joints.shape[0] != 15:
+                        print(batch_member, window, p1_joints.shape[0], p2_joints.shape[0])
+                    # if p1_joints.shape[0] != p2_joints.shape[0]:
+                    #     print(batch_member, window)
+                    joint_lstm_stream = np.concatenate((p1_joints, p2_joints), axis=2)
+                    #reshape into one object
+                    joint_lstm_stream = joint_lstm_stream.reshape((joint_lstm_stream.shape[0],
+                                               joint_lstm_stream.shape[1] * joint_lstm_stream.shape[2]))
+                    window_temp[window, :, :] = np.expand_dims(joint_lstm_stream, axis=0)
+
+                new_batch_x[batch_member,: ,: ,:] = window_temp
+
+            batch_x = new_batch_x
+
+        else:
+            pass
+
         return batch_x, batch_y
     
     def on_epoch_end(self):

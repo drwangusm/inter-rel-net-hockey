@@ -6,7 +6,7 @@ from keras.optimizers import SGD
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger
     
-from datasets import UT, NTU_V2, SBU, NTU
+from datasets import UT, NTU_V2, SBU, NTU, YMJA
 from datasets.data_generator import DataGeneratorSeq
 from models.temporal_rn import get_model, get_fusion_model
 from misc.utils import read_config
@@ -105,6 +105,8 @@ def train_temp_rn(output_path, dataset_name, model_kwargs, data_kwargs,
         buffer_data = True # Dataset is too small, reading all data at once is better
     elif dataset_name == 'SBU':
         dataset = SBU
+    elif dataset_name == 'YMJA':
+        dataset = YMJA
     elif dataset_name == 'NTU':
         dataset = NTU
         use_data_gen = True # Unable to read all data at once, dataset too big.
@@ -138,27 +140,42 @@ def train_temp_rn(output_path, dataset_name, model_kwargs, data_kwargs,
         
         train_data = [X_train, Y_train]
         val_data = [X_val, Y_val]
-    
+
     _, seq_len, num_joints, *object_shape = np.array(X_train).shape
-    num_joints = num_joints//2
-    object_shape = tuple(object_shape)
-    output_size = len(Y_train[0])
-    overhead = add_joint_idx + add_body_part # True/False = 1/0
-    num_dim = (object_shape[0]-overhead)//timesteps
+
+    if 'arch' not in list(data_kwargs.keys()):
+        num_joints = num_joints//2
+        object_shape = tuple(object_shape)
+        output_size = len(Y_train[0])
+        overhead = add_joint_idx + add_body_part # True/False = 1/0
+        num_dim = (object_shape[0]-overhead)//timesteps
+
+    elif data_kwargs['arch'] == 'joint-lstm':
+        object_shape = tuple(object_shape)
+        output_size = len(Y_train[0])
+        overhead = add_joint_idx + add_body_part # True/False = 1/0
+        num_dim = (object_shape[0]-overhead)//timesteps
     
     if verbose > 0:
         print("Creating model...")
+
+    # if(model_kwargs['rel_type'] == 'joint_stream' or model_kwargs['rel_type'] == 'temp_stream'):
+    #     num_joints = len(X_train)
 
     model = get_model(num_objs=num_joints, object_shape=object_shape, 
         output_size=output_size, num_dim=num_dim, overhead=overhead,
         kernel_init_type=kernel_init_type, kernel_init_param=kernel_init_param, 
         kernel_init_seed=kernel_init_seed, drop_rate=drop_rate, seq_len=seq_len,
         **model_kwargs)
+
+    return_attention = False
+    if 'return_attention' in model_kwargs:
+        return_attention = model_kwargs['return_attention']
     
     fit_history = train_model(model=model, verbose=verbose, learning_rate=learning_rate, 
         output_path=output_path, checkpoint_period=checkpoint_period, 
         batch_size=batch_size, epochs=epochs, use_data_gen=use_data_gen, 
-        train_data=train_data, val_data=val_data, subsample_ratio=subsample_ratio)
+        train_data=train_data, val_data=val_data, subsample_ratio=subsample_ratio,  return_attention=return_attention)
     
     return fit_history
 

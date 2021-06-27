@@ -34,7 +34,7 @@ def load_args():
     ap.add_argument('-n','--num-reruns',
         help="number of reruns per fold",
         type=int,
-        default=4)
+        default=1)
     ap.add_argument('-f','--folds',
         help="list of folds to run",
         nargs='*')
@@ -63,6 +63,7 @@ def load_args():
     
     args = ap.parse_args()
     
+
     return args
 
 def parse_fit_history(fit_history):
@@ -72,7 +73,7 @@ def parse_fit_history(fit_history):
     
     return hist_df
 
-def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=2,
+def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
         folds=None, verbose=0, batch_size=64, seqs_eval=False, fusion_mode=None,
         temp_rn=False):
     if fusion_mode is None:
@@ -112,7 +113,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=2,
         else:
             dataset_folds = list(map(int, folds))
     
-    base_path = 'models/{}/{}'.format(dataset_name, experiment_name)
+    base_path = '/usr/local/data02/faskari/inter-rel-net/models/{}/{}'.format(dataset_name, experiment_name)
     print("Running for dataset:", dataset_name)
     print("Running for folds:", dataset_folds)
     print("Experiment name:", experiment_name)
@@ -149,9 +150,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=2,
     print("\t > Batch Size:", batch_size)
     print("\t Evaluation options")
     print("\t > Pool average from videos sequences:", seqs_eval)
-    
-    
-    
+
     if seqs_eval:
         fold_results_seqs = []
         data_kwargs_seqs = data_kwargs.copy()

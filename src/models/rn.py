@@ -260,7 +260,7 @@ def f_phi(num_objs, object_shape, rel_type, kernel_init, fc_units=[500,100,100],
 
     # For Joint Stream, similar structure except have one object for joint of both individuals
     # For Temporal stream, have one object per timestep
-    # Object shape should correspond to timesteps * num_people (2) * num_dimension
+    # Object shape should correspond to timesteps * num_people (2) * num_dimension / 2
     if rel_type == 'joint_stream' or rel_type == 'temp_stream':
         augmented_stream_objects = []
 

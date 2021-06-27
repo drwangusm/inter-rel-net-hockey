@@ -197,7 +197,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             callbacks=callbacks_list,
             validation_data=val_generator,
             validation_steps=validation_steps,
-            workers=4, max_queue_size=8, # Default is 10
+            workers=0, max_queue_size=10, # Default is 10
             use_multiprocessing=True,
             verbose=verbose)
         
