@@ -151,13 +151,13 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
     print("\t Evaluation options")
     print("\t > Pool average from videos sequences:", seqs_eval)
 
-    if seqs_eval:
-        fold_results_seqs = []
-        data_kwargs_seqs = data_kwargs.copy()
-        
-        data_kwargs_seqs.setdefault('seq_step', data_kwargs['timesteps']//2)
-        data_kwargs_seqs['flat_seqs'] = False
-        print("\t > Step between sequences:", data_kwargs_seqs['seq_step'])
+    # if seqs_eval:
+    #     fold_results_seqs = []
+    #     data_kwargs_seqs = data_kwargs.copy()
+    #
+    #     data_kwargs_seqs.setdefault('seq_step', data_kwargs['timesteps']//2)
+    #     data_kwargs_seqs['flat_seqs'] = False
+    #     print("\t > Step between sequences:", data_kwargs_seqs['seq_step'])
     
     fold_results = []
     for dataset_fold in dataset_folds:
@@ -170,7 +170,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
                 for weights_base_path in weights_base_paths ]
             print('> fold weights filepaths:', fold_weights_filepaths)
         
-        if seqs_eval: reruns_val_acc_seqs = []
+        # if seqs_eval: reruns_val_acc_seqs = []
         best_epochs = []
         for rerun_idx in range(num_reruns):
             output_path = fold_path+'/rerun_{}'.format(rerun_idx)

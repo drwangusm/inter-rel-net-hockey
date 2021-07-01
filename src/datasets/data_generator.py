@@ -353,8 +353,8 @@ class DataGeneratorSeq(Sequence):
                     p2_joints = batch_x[batch_member, window, batch_x.shape[2]//2:batch_x.shape[2], :]
                     p2_joints = p2_joints.reshape((p2_joints.shape[0], timesteps, num_dim))
                     # print(p2_joints.shape)
-                    if p2_joints.shape[0] != 15:
-                        print(batch_member, window, p1_joints.shape[0], p2_joints.shape[0])
+                    # if p2_joints.shape[0] != 15:
+                    #     print(batch_member, window, p1_joints.shape[0], p2_joints.shape[0])
                     # if p1_joints.shape[0] != p2_joints.shape[0]:
                     #     print(batch_member, window)
                     joint_lstm_stream = np.concatenate((p1_joints, p2_joints), axis=2)

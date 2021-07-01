@@ -159,7 +159,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
         use_earlyStopping=True, data_len = None, return_attention=False):
     if verbose > 0:
         print ("Compiling model...")
-        
+    #todo check here
     if return_attention:
         model.compile(loss=['categorical_crossentropy', None], # Don't train attention
                 optimizer=Adam(lr=learning_rate),
