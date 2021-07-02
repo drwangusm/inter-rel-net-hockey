@@ -152,25 +152,60 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
             irn_model = get_irn(num_objs, object_shape, prune_at_layer=prune_at_layer,
                                 kernel_init=kernel_init, **irn_kwargs)
 
-        input_irn = Input(shape=((num_objs,)+object_shape))
-        slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs) ])(input_irn)
-        irn_model_out = irn_model(slice)
-        merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
-        x = TimeDistributed(merged_irn_model)(temp_input)
+        if 'return_attention' in irn_kwargs and irn_kwargs['return_attention']:
+
+            # ''''write the solution here'''
+            # input_irn = Input(shape=((num_objs,)+object_shape))
+            # slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs)])(input_irn)
+            # irn_model_out = irn_model(slice)
+            # outputs = []
+            # output1 = TimeDistributed(Model(input_irn, irn_model_out[0]))(temp_input)
+            # output2 = irn_model_out[1]
+            # # for out in irn_model_out:
+            # #     outputs.append(TimeDistributed(Model(input_irn, out))(temp_input))
+            #
+            # #output1, output2 = outputs
+            # if num_lstms == 2:
+            #     x = LSTM(256, dropout=drop_rate, return_sequences=True)(output1)
+            # x = LSTM(256, dropout=drop_rate)(output1)
+            # out_softmax = Dense(output_size, activation='softmax',
+            #                     kernel_initializer=kernel_init, name='model')(x)
+            # #model = Model(inputs=temp_input, outputs=[out_softmax, output2], name="temp_rel_net")
+            # model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
+            #
+            # return model
+            print('implement later')
+
+        else:
+
+            input_irn = Input(shape=((num_objs,)+object_shape))
+            slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs)])(input_irn)
+            irn_model_out = irn_model(slice)
+            #todo here are some changes
+            merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+            x = TimeDistributed(merged_irn_model)(temp_input)
+            if num_lstms == 2:
+                x = LSTM(256, dropout=drop_rate, return_sequences=True)(x)
+            x = LSTM(256, dropout=drop_rate)(x)
+
+            out_softmax = Dense(output_size, activation='softmax',
+                                kernel_initializer=kernel_init, name='model')(x)
+
+            model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
+
+            return model
+
 
     else:
         temp_input = Input(shape=((seq_len, num_objs*2,) + object_shape))
         if lstm_location == 'top': # After f_phi
             irn_model = get_irn(num_objs, object_shape, prune_at_layer=prune_at_layer,
                     kernel_init=kernel_init, **irn_kwargs)
-        
         # Creating model with merged input then slice, to apply TimeDistributed
-
         input_irn = Input(shape=((num_objs*2,)+object_shape))
         slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2) ])(input_irn)
         irn_model_out = irn_model(slice)
         merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
-        
         # Wrapping merged model with TimeDistributed
         x = TimeDistributed(merged_irn_model)(temp_input)
     # elif lstm_location == 'middle': # Between g_theta and f_phi
@@ -216,16 +251,13 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
     #     top_kwargs = rn.get_relevant_kwargs(irn_kwargs, create_timedist_top)
     #     x = create_timedist_top(g_theta_merged_out, kernel_init, **top_kwargs)
     
-    if num_lstms == 2:
-        x = LSTM(256, dropout=drop_rate, return_sequences=True)(x)
-    x = LSTM(256, dropout=drop_rate)(x)
-    
-    out_softmax = Dense(output_size, activation='softmax', 
-        kernel_initializer=kernel_init, name='softmax')(x)
-    
-    model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
-    
-    return model
+        if num_lstms == 2:
+            x = LSTM(256, dropout=drop_rate, return_sequences=True)(x)
+        x = LSTM(256, dropout=drop_rate)(x)
+        out_softmax = Dense(output_size, activation='softmax',
+            kernel_initializer=kernel_init, name='softmax')(x)
+        model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
+        return model
 
 def get_fusion_model(num_objs, object_shape, output_size, seq_len, train_kwargs,
         models_kwargs, weights_filepaths, freeze_g_theta=False, fuse_at_fc1=False):

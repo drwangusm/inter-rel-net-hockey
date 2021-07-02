@@ -174,7 +174,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
     # Setting up Callbacks
     callbacks_list = set_callbacks(output_path, checkpoint_period, batch_size,
         use_earlyStopping=use_earlyStopping, return_attention=return_attention)
-    
+
     if verbose > 0:
         print("Starting training...")
         
