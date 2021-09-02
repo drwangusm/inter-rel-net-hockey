@@ -145,7 +145,7 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
     kernel_init = rn.get_kernel_init(kernel_init_type, param=kernel_init_param, 
         seed=kernel_init_seed)
 
-    if irn_kwargs['rel_type'] == 'joint_stream':
+    if irn_kwargs['rel_type'] == 'joint_stream' or irn_kwargs['rel_type'] == 'temp_stream':
 
         temp_input = Input(shape=((seq_len, num_objs,) + object_shape))
         if lstm_location == 'top': # After f_phi
@@ -155,24 +155,6 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
         if 'return_attention' in irn_kwargs and irn_kwargs['return_attention']:
 
             # ''''write the solution here'''
-            # input_irn = Input(shape=((num_objs,)+object_shape))
-            # slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs)])(input_irn)
-            # irn_model_out = irn_model(slice)
-            # outputs = []
-            # output1 = TimeDistributed(Model(input_irn, irn_model_out[0]))(temp_input)
-            # output2 = irn_model_out[1]
-            # # for out in irn_model_out:
-            # #     outputs.append(TimeDistributed(Model(input_irn, out))(temp_input))
-            #
-            # #output1, output2 = outputs
-            # if num_lstms == 2:
-            #     x = LSTM(256, dropout=drop_rate, return_sequences=True)(output1)
-            # x = LSTM(256, dropout=drop_rate)(output1)
-            # out_softmax = Dense(output_size, activation='softmax',
-            #                     kernel_initializer=kernel_init, name='model')(x)
-            # #model = Model(inputs=temp_input, outputs=[out_softmax, output2], name="temp_rel_net")
-            # model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
-            #
             # return model
             print('implement later')
 
@@ -259,17 +241,21 @@ def get_model(num_objs, object_shape, output_size, seq_len=4,
         model = Model(inputs=temp_input, outputs=out_softmax, name="temp_rel_net")
         return model
 
-def get_fusion_model(num_objs, object_shape, output_size, seq_len, train_kwargs,
-        models_kwargs, weights_filepaths, freeze_g_theta=False, fuse_at_fc1=False):
-    
+def get_fusion_model(new_arch, output_size, seq_len, train_kwargs,
+        models_kwargs, weights_filepaths, freeze_g_theta=False, fuse_at_fc1=False, avg_at_end=False):
+
     prunned_models = []
     for model_kwargs, weights_filepath in zip(models_kwargs, weights_filepaths):
-        temp_model = get_model(num_objs=num_objs, object_shape=object_shape, 
-            output_size=output_size, seq_len=seq_len, **model_kwargs)
+        # num_objs = model_kwargs['num_objs']
+        # object_shape = model_kwargs["object_shape"]
+        # temp_model = get_model(num_objs=num_objs, object_shape=object_shape,
+        #     output_size=output_size, seq_len=seq_len, **model_kwargs)
+
+        temp_model = get_model(output_size=output_size, seq_len=seq_len, **model_kwargs)
         
         if weights_filepath != []:
             temp_model.load_weights(weights_filepath)
-        
+        #todo here
         for layer in temp_model.layers: # Looking for time_distributed layer
             if layer.name.startswith('time_distributed'):
                 time_distributed_layer = layer
@@ -279,22 +265,28 @@ def get_fusion_model(num_objs, object_shape, output_size, seq_len, train_kwargs,
         
         model_inputs = []
         for layer in model.layers:
-            if layer.name.startswith('person'):
+            if layer.name.startswith('person') or layer.name.startswith('joint'):
                 model_inputs.append(layer.input)
         
-        if not fuse_at_fc1:
+        if not fuse_at_fc1 and not avg_at_end:
             for layer in model.layers[::-1]: # reverse looking for last pool layer
-                if layer.name.startswith(('average','concatenate')):
+                if layer.name.startswith(('average','concatenate','irn_attention')):
                     out_pool = layer.output
                     break
             prunned_model = Model(inputs=model_inputs, outputs=out_pool)
-        else: # Prune keeping dropout + f_phi_fc1
+        elif fuse_at_fc1: # Prune keeping dropout + f_phi_fc1
             for layer in model.layers[::-1]: # reverse looking for last f_phi_fc1 layer
                 if layer.name.startswith(('f_phi_fc1')):
                     out_f_phi_fc1 = layer.output
                     break
             prunned_model = Model(inputs=model_inputs, outputs=out_f_phi_fc1)
-        
+
+        elif avg_at_end:
+            #todo we want to return the whole model including lstm
+
+            prunned_model = Model(inputs=model_inputs, outputs=model.outputs)
+            #prunned_model = temp_model
+
         if freeze_g_theta:
             for layer in prunned_model.layers: # Freezing model
                 layer.trainable = False
@@ -308,42 +300,121 @@ def get_fusion_model(num_objs, object_shape, output_size, seq_len, train_kwargs,
     
     kernel_init = rn.get_kernel_init(kernel_init_type, param=kernel_init_param, 
         seed=kernel_init_seed)
-    
-    # Building bottom
-    person1_joints = []
-    person2_joints = []
-    for i in range(num_objs):
-        object_i = Input(shape=object_shape, name="person1_object"+str(i))
-        object_j = Input(shape=object_shape, name="person2_object"+str(i))
-        person1_joints.append(object_i)
-        person2_joints.append(object_j)
-    inputs = person1_joints + person2_joints
-    
-    models_outs = [ m(inputs) for m in prunned_models ]
-    x = Concatenate()(models_outs)
-    
-    # Building top and Model
-    top_kwargs = rn.get_relevant_kwargs(model_kwargs, rn.create_top) 
-    out_rn = rn.create_top(x, kernel_init, **top_kwargs)
-    
-    irn_model = Model(inputs=inputs, outputs=out_rn)
-    
-    # Wrapping with TimeDistributed
-    
-    input_irn = Input(shape=((num_objs*2,)+object_shape))
-    slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2) ])(input_irn)
-    
-    irn_model_out = irn_model(slice)
-    merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
-    
-    temp_input = Input(shape=((seq_len, num_objs*2,) + object_shape))
-    x = TimeDistributed(merged_irn_model)(temp_input)
-    
-    lstm = LSTM(256, dropout=drop_rate)(x)
-    
-    out_softmax = Dense(output_size, activation='softmax', 
-        kernel_initializer=kernel_init, name='softmax')(lstm)
-    model = Model(inputs=temp_input, outputs=out_softmax, name="fused_temp_rel_net")
-    
+
+    if new_arch:
+
+        joint_stream_objects = []
+        temp_stream_objects = []
+
+        for i in range(models_kwargs[0]['num_objs']):
+            obj_joint = Input(shape=models_kwargs[0]['object_shape'], name="joint_stream_object"+str(i))
+            joint_stream_objects.append(obj_joint)
+
+        for i in range(models_kwargs[1]['num_objs']):
+            obj_temp = Input(shape=models_kwargs[1]['object_shape'], name="temp_stream_object"+str(i))
+            temp_stream_objects.append(obj_temp)
+
+        inputs = joint_stream_objects + temp_stream_objects
+        inputs_list = [joint_stream_objects, temp_stream_objects]
+        models_outs = [ prunned_models[0](joint_stream_objects), prunned_models[1](temp_stream_objects) ]
+
+    else:
+        # Building bottom
+        person1_joints = []
+        person2_joints = []
+        #todo model or models??
+        num_objs = model_kwargs['num_objs']
+        object_shape = model_kwargs['object_shape']
+        for i in range(num_objs):
+            object_i = Input(shape=object_shape, name="person1_object"+str(i))
+            object_j = Input(shape=object_shape, name="person2_object"+str(i))
+            person1_joints.append(object_i)
+            person2_joints.append(object_j)
+
+        inputs = person1_joints + person2_joints
+        models_outs = [ m(inputs) for m in prunned_models ]
+
+    #todo it will be different for each object type
+    num_objs = model_kwargs['num_objs']
+    object_shape = model_kwargs['object_shape']
+
+    if not avg_at_end:
+        # complete_models = []
+        x = Concatenate()(models_outs)
+        # Building top and Model
+        top_kwargs = rn.get_relevant_kwargs(model_kwargs, rn.create_top)
+        out_rn = rn.create_top(x, kernel_init, **top_kwargs)
+        irn_model = Model(inputs=inputs, outputs=out_rn)
+
+        slices = []
+        inputs_irn =[]
+        temp_inputs = []
+        xs = []
+        if new_arch:
+            for stream_kwarg, stream_input, stream_output, stream_model  in zip(models_kwargs, inputs_list, models_outs, prunned_models):
+
+                input_irn = Input(shape=((stream_kwarg['num_objs'],) + stream_kwarg['object_shape']))
+                slice = Lambda(lambda x: [ x[:,i] for i in range(stream_kwarg['num_objs'])])(input_irn)
+                irn_model_out = stream_model(slice)
+                temp_input = Input(shape=((seq_len, stream_kwarg['num_objs'],) + stream_kwarg['object_shape']))
+                merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+                x = TimeDistributed(merged_irn_model)(temp_input)
+                xs.append(x)
+                temp_inputs.append(temp_input)
+                slices.append(slice)
+
+            x = Concatenate()(xs)
+            top_kwargs = rn.get_relevant_kwargs(model_kwargs, rn.create_top)
+            out_rn = rn.create_top(x, kernel_init, **top_kwargs)
+            lstm = LSTM(256, dropout=drop_rate)(out_rn)
+            out_softmax = Dense(output_size, activation='softmax',
+                                kernel_initializer=kernel_init, name='softmax')(lstm)
+            model = Model(inputs=temp_inputs, outputs=out_softmax, name="fused_temp_rel_net")
+
+        else:
+            x = Concatenate()(models_outs)
+            # Building top and Model
+            top_kwargs = rn.get_relevant_kwargs(model_kwargs, rn.create_top)
+            out_rn = rn.create_top(x, kernel_init, **top_kwargs)
+            irn_model = Model(inputs=inputs, outputs=out_rn)
+            input_irn = Input(shape=((num_objs*2,)+object_shape))
+            slice = Lambda(lambda x: [ x[:,i] for i in range(num_objs*2)])(input_irn)
+            irn_model_out = irn_model(slice)
+            merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+            temp_input = Input(shape=((seq_len, num_objs*2,) + object_shape))
+
+            x = TimeDistributed(merged_irn_model)(temp_input)
+            lstm = LSTM(256, dropout=drop_rate)(x)
+            out_softmax = Dense(output_size, activation='softmax',
+                kernel_initializer=kernel_init, name='softmax')(lstm)
+            model = Model(inputs=temp_input, outputs=out_softmax, name="fused_temp_rel_net")
+
+    else:
+
+        complete_models = []
+        inputs = []
+        for stream_kwarg, stream_input, stream_output, stream_model in zip(models_kwargs, inputs_list, models_outs, prunned_models):
+
+            input_irn = Input(shape=((stream_kwarg['num_objs'],) + stream_kwarg['object_shape']))
+            slice = Lambda(lambda x: [ x[:,i] for i in range(stream_kwarg['num_objs'])])(input_irn)
+            irn_model_out = stream_model(slice)
+            merged_irn_model = Model(inputs=input_irn, outputs=irn_model_out)
+            temp_input = Input(shape=((seq_len, stream_kwarg['num_objs'],) + stream_kwarg['object_shape']))
+            x = TimeDistributed(merged_irn_model)(temp_input)
+            lstm = LSTM(256, dropout=drop_rate)(x)
+            #todo add softmax name
+            # out_softmax = Dense(output_size, activation='softmax',
+            #                     kernel_initializer=kernel_init)(lstm)
+            complete_models.append(lstm)
+            inputs.append(temp_input)
+
+        out = Average()(complete_models)
+        out_softmax = Dense(output_size, activation='softmax',
+                                             kernel_initializer=kernel_init)(out)
+
+        model = Model(inputs=inputs, outputs=out_softmax, name="fused_temp_rel_net")
+
     return model
+
+
 

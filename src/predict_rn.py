@@ -84,7 +84,7 @@ def predict_rn(weights_path, dataset_name, model_kwargs, data_kwargs,
             print("\t > {}: {}".format(key, value))
         # print("\t Relation info")
         # print("\t > relationship type:", rel_type)
-        # print("\t > fusion type:", fuse_type)
+        # print("\t > two_stream type:", fuse_type)
         print("\t Predicting options")
         print("\t > Batch Size:", batch_size)
     

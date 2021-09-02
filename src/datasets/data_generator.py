@@ -117,8 +117,9 @@ class DataGenerator(Sequence):
         if self.shuffle_indiv_order:
             NUM_PEOPLE = 2
             NUM_DIM = 3
-            if self.pose_style == 'YMJA':
+            if self.pose_style == 'YMJA' or self.pose_style == 'OpenPose' :
                 NUM_DIM = 2
+                # NUM_PEOPLE = 2
 
             if 'arch' in self.data_kwargs and (self.data_kwargs['arch'] == 'joint' or self.data_kwargs['arch'] == 'temp'):
                 # Convert to form (num joints, num samples, timesteps, num people, num dimensions) for joint stream
@@ -211,7 +212,7 @@ class DataGeneratorSeq(Sequence):
     def __init__(self, dataset_name, dataset_fold, subset,
                 batch_size=32, reshuffle=False, shuffle_indiv_order=False, 
                 pad_sequences = False, maxlen=None, padding='pre',
-                buffer_data = False,
+                buffer_data = False, new_arch=False,
                 **data_kwargs):
         if dataset_name == 'UT':
             dataset = UT
@@ -335,40 +336,73 @@ class DataGeneratorSeq(Sequence):
         
         batch_x = np.array(batch_x)
 
-        if self.arch == 'joint-lstm':
+        if self.arch == 'joint-lstm' or self.arch == 'lstm_joint_temp_fused':
             timesteps = self.data_kwargs['timesteps']
             #todo has to match dataset
-            #todo check the order is correct after reshaping and all
-            num_dim = 3
 
-            new_batch_x = np.empty((batch_x.shape[0], batch_x.shape[1], (batch_x.shape[2]//2), (2 * batch_x.shape[3])))
+            num_dim = 3
+            num_ppl = 2
+
+            if self.pose_style == 'YMJA' or self.pose_style == 'OpenPose':
+                num_dim = 2
+
+            new_batch_x_j = np.empty((batch_x.shape[0], batch_x.shape[1], (batch_x.shape[2]//num_ppl), (num_ppl * batch_x.shape[3])))
 
             for batch_member in range(batch_x.shape[0]):
                 window_temp = np.empty((batch_x.shape[1], (batch_x.shape[2]//2), (2 * batch_x.shape[3])))
                 for window in range(batch_x.shape[1]):
                     p1_joints = batch_x[batch_member, window, 0:batch_x.shape[2]//2, :]
                     p1_joints = p1_joints.reshape((p1_joints.shape[0], timesteps, num_dim))
-                    # print('***', str(batch_member), str(window))
-                    # print(p1_joints.shape)
+
                     p2_joints = batch_x[batch_member, window, batch_x.shape[2]//2:batch_x.shape[2], :]
                     p2_joints = p2_joints.reshape((p2_joints.shape[0], timesteps, num_dim))
-                    # print(p2_joints.shape)
-                    # if p2_joints.shape[0] != 15:
-                    #     print(batch_member, window, p1_joints.shape[0], p2_joints.shape[0])
-                    # if p1_joints.shape[0] != p2_joints.shape[0]:
-                    #     print(batch_member, window)
+
                     joint_lstm_stream = np.concatenate((p1_joints, p2_joints), axis=2)
                     #reshape into one object
                     joint_lstm_stream = joint_lstm_stream.reshape((joint_lstm_stream.shape[0],
                                                joint_lstm_stream.shape[1] * joint_lstm_stream.shape[2]))
                     window_temp[window, :, :] = np.expand_dims(joint_lstm_stream, axis=0)
 
-                new_batch_x[batch_member,: ,: ,:] = window_temp
+                new_batch_x_j[batch_member,: ,: ,:] = window_temp
 
-            batch_x = new_batch_x
+            if self.arch != 'lstm_joint_temp_fused':
+                batch_x = new_batch_x_j
 
-        else:
-            pass
+        if self.arch == 'temp-lstm' or self.arch == 'lstm_joint_temp_fused':
+            timesteps = self.data_kwargs['timesteps']
+            #todo has to match dataset
+            #todo check the order is correct after reshaping and all
+            num_dim = 3
+
+            if self.pose_style == 'YMJA' or self.pose_style == 'OpenPose':
+                num_dim = 2
+
+            new_batch_x_t = np.empty((batch_x.shape[0], batch_x.shape[1], (batch_x.shape[3]//num_dim), (num_dim * batch_x.shape[2])))
+
+            for batch_member in range(batch_x.shape[0]):
+                window_temp = np.empty((batch_x.shape[1], (batch_x.shape[3]//num_dim), (num_dim * batch_x.shape[2])))
+                for window in range(batch_x.shape[1]):
+                    p1_joints = batch_x[batch_member, window, 0:batch_x.shape[2]//2, :]
+                    p1_joints = p1_joints.reshape((p1_joints.shape[0], timesteps, num_dim))
+
+                    p2_joints = batch_x[batch_member, window, batch_x.shape[2]//2:batch_x.shape[2], :]
+                    p2_joints = p2_joints.reshape((p2_joints.shape[0], timesteps, num_dim))
+
+                    temp_lstm_stream = np.concatenate((p1_joints, p2_joints), axis=2)
+                    #reshape into one object
+                    temp_lstm_stream = np.transpose(temp_lstm_stream, axes=(1, 0, 2))
+                    temp_lstm_stream = temp_lstm_stream.reshape((temp_lstm_stream.shape[0],
+                                                                 temp_lstm_stream.shape[1] * temp_lstm_stream.shape[2]))
+                    window_temp[window, :, :] = np.expand_dims(temp_lstm_stream, axis=0)
+
+                new_batch_x_t[batch_member,: ,: ,:] = window_temp
+
+            if self.arch != 'lstm_joint_temp_fused':
+                batch_x = new_batch_x_t
+        #todo the list operation might change depending on what
+        #happens in the rest of the non temp stream
+        if self.arch == 'lstm_joint_temp_fused':
+            return [new_batch_x_j, new_batch_x_t], batch_y
 
         return batch_x, batch_y
     

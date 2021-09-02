@@ -141,20 +141,40 @@ def train_temp_rn(output_path, dataset_name, model_kwargs, data_kwargs,
         train_data = [X_train, Y_train]
         val_data = [X_val, Y_val]
 
-    _, seq_len, num_joints, *object_shape = np.array(X_train).shape
+
 
     if 'arch' not in list(data_kwargs.keys()):
+
+        _, seq_len, num_joints, *object_shape = np.array(X_train).shape
         num_joints = num_joints//2
+        num_objs = num_joints
         object_shape = tuple(object_shape)
         output_size = len(Y_train[0])
         overhead = add_joint_idx + add_body_part # True/False = 1/0
         num_dim = (object_shape[0]-overhead)//timesteps
 
     elif data_kwargs['arch'] == 'joint-lstm':
+        _, seq_len, num_joints, *object_shape = np.array(X_train).shape
+        num_objs=num_joints
         object_shape = tuple(object_shape)
         output_size = len(Y_train[0])
         overhead = add_joint_idx + add_body_part # True/False = 1/0
         num_dim = (object_shape[0]-overhead)//timesteps
+
+    elif data_kwargs['arch'] == 'temp-lstm':
+
+        num_ppl = 2
+        num_coord = 3
+        if dataset_name == 'UT':
+            num_coord = 2
+        _, seq_len, num_frames, *object_shape = np.array(X_train).shape
+        num_joints = object_shape[0]//(num_ppl * num_coord)
+        num_objs = num_frames
+        object_shape = tuple(object_shape)
+        output_size = len(Y_train[0])
+        overhead = add_joint_idx + add_body_part # True/False = 1/0
+        #todo what does this do?
+        num_dim = (object_shape[0]-overhead)//num_joints
     
     if verbose > 0:
         print("Creating model...")
@@ -162,7 +182,7 @@ def train_temp_rn(output_path, dataset_name, model_kwargs, data_kwargs,
     # if(model_kwargs['rel_type'] == 'joint_stream' or model_kwargs['rel_type'] == 'temp_stream'):
     #     num_joints = len(X_train)
 
-    model = get_model(num_objs=num_joints, object_shape=object_shape, 
+    model = get_model(num_objs=num_objs, object_shape=object_shape,
         output_size=output_size, num_dim=num_dim, overhead=overhead,
         kernel_init_type=kernel_init_type, kernel_init_param=kernel_init_param, 
         kernel_init_seed=kernel_init_seed, drop_rate=drop_rate, seq_len=seq_len,
@@ -182,12 +202,14 @@ def train_temp_rn(output_path, dataset_name, model_kwargs, data_kwargs,
 def train_fused_temp_rn(output_path, dataset_name, dataset_fold,
         config_filepaths, weights_filepaths,
         batch_size=32, epochs=100, checkpoint_period=5, learning_rate=1e-4, 
-        drop_rate=0.1, freeze_g_theta=False, fuse_at_fc1=False,
+        drop_rate=0.1, freeze_g_theta=False, fuse_at_fc1=False, new_arch=False, avg_at_end=False,
         initial_epoch=0, initial_weights=None, use_data_gen = True,
         subsample_ratio=None,
         gpus=1,verbose=2):
     
     data_kwargs, _, _ = read_config(config_filepaths[0])
+    if new_arch:
+        data_kwargs['arch'] = 'lstm_joint_temp_fused'
     
     if verbose > 0:
         print("***** Training parameters for train_fused_temp_rn *****")
@@ -199,6 +221,7 @@ def train_fused_temp_rn(output_path, dataset_name, dataset_fold,
         print("\t > weights_filepaths:", weights_filepaths)
         print("\t > freeze_g_theta:", freeze_g_theta)
         print("\t > fuse_at_fc1:", fuse_at_fc1)
+        print("\t > New architecture:", new_arch)
         print("\t Training options")
         print("\t > Batch Size:", batch_size)
         print("\t > Epochs:", epochs)
@@ -217,6 +240,9 @@ def train_fused_temp_rn(output_path, dataset_name, dataset_fold,
         use_earlyStopping = False
     elif dataset_name == 'SBU':
         dataset = SBU
+    #todo add NTU
+    # elif dataset_name == 'NTU':
+    #     dataset = NTU
     
     if verbose > 0:
         print("Reading data...")
@@ -225,11 +251,13 @@ def train_fused_temp_rn(output_path, dataset_name, dataset_fold,
         if verbose > 0:
             print("> Using DataGenerator")
         train_generator = DataGeneratorSeq(dataset_name, dataset_fold, 'train',
-                batch_size=batch_size, reshuffle=True, shuffle_indiv_order=True, 
+                batch_size=batch_size, new_arch=new_arch, reshuffle=True, shuffle_indiv_order=True,
                 pad_sequences=True, **data_kwargs)
         val_generator = DataGeneratorSeq(dataset_name, dataset_fold, 'validation',
-                batch_size=batch_size, reshuffle=False, shuffle_indiv_order=False,
+                batch_size=batch_size, new_arch=new_arch, reshuffle=False, shuffle_indiv_order=False,
                 pad_sequences=True, **data_kwargs)
+
+        #todo changes here: are they list in non-lstm version too?
         X_train, Y_train = train_generator[0]
         X_val, Y_val = val_generator[0]
         train_data = train_generator
@@ -241,30 +269,93 @@ def train_fused_temp_rn(output_path, dataset_name, dataset_fold,
         X_val, Y_val = dataset.get_val(dataset_fold, **data_kwargs)
         train_data = [X_train, Y_train]
         val_data = [X_val, Y_val]
-    
-    _, seq_len, num_joints, *object_shape = np.array(X_train).shape
-    num_joints = num_joints//2
-    object_shape = tuple(object_shape)
-    output_size = len(Y_train[0])
-    
+
     models_kwargs = []
-    for config_filepath in config_filepaths:
-        data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
-        timesteps = data_kwargs['timesteps']
-        add_joint_idx = data_kwargs['add_joint_idx']
-        add_body_part = data_kwargs['add_body_part']
-        overhead = add_joint_idx + add_body_part # True/False = 1/0
-        num_dim = (object_shape[0]-overhead)//timesteps
-        model_kwargs['num_dim'] = num_dim
-        model_kwargs['overhead'] = overhead
-        models_kwargs.append(model_kwargs)
+
+    if new_arch:
+
+        check_configs = []
+        for config_filepath in config_filepaths:
+            data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
+            check_configs.append(model_kwargs)
+
+        # Ensure that temporal stream and joint stream both included. Reorder if necessary so that joint stream first.
+        if(len(check_configs) != 2):
+            print("Error: Expecting Joint Stream and Temporal Stream")
+            exit(0)
+
+        # Should reorder both weights and config.
+        if(check_configs[0]['rel_type'] == 'temp_stream'):
+            config_filepaths.reverse()
+            weights_filepaths.reverse()
+
+        check_configs = []
+        for config_filepath in config_filepaths:
+            data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
+            check_configs.append(model_kwargs)
+
+        # Ensure that both joint and temporal stream exist
+        if(check_configs[0]['rel_type'] != 'joint_stream' or check_configs[1]['rel_type'] != 'temp_stream'):
+            print("Error: Expecting Joint Stream and Temporal Stream")
+            exit(0)
+
+        # Ensure X_train has two components
+        if(len(X_train) != 2):
+            print("Error: Expecting X_train to consist of both joint and temporal components")
+            exit(0)
+        #todo this change
+        for config_filepath, X_train_comp in zip(config_filepaths, X_train):
+
+            #todo was this correct for before two_stream?
+            _, seq_len, num_joints_or_frames, *object_shape = np.array(X_train_comp).shape
+            object_shape = tuple(object_shape)
+            output_size = len(Y_train[0])
+
+            data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
+            timesteps = data_kwargs['timesteps']
+            add_joint_idx = data_kwargs['add_joint_idx']
+            add_body_part = data_kwargs['add_body_part']
+            overhead = add_joint_idx + add_body_part # True/False = 1/0
+            num_dim = (object_shape[0]-overhead)//num_joints_or_frames
+            model_kwargs['num_dim'] = num_dim
+            model_kwargs['overhead'] = overhead
+            model_kwargs['num_objs'] = num_joints_or_frames
+            model_kwargs['object_shape'] = object_shape
+
+            models_kwargs.append(model_kwargs)
+
+    else:
+
+        #todo was this correct for before two_stream?
+        _, seq_len, num_joints, *object_shape = np.array(X_train).shape
+        num_joints = num_joints//2
+        object_shape = tuple(object_shape)
+        output_size = len(Y_train[0])
+
+        for config_filepath in config_filepaths:
+            data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
+            timesteps = data_kwargs['timesteps']
+            add_joint_idx = data_kwargs['add_joint_idx']
+            add_body_part = data_kwargs['add_body_part']
+            overhead = add_joint_idx + add_body_part # True/False = 1/0
+            num_dim = (object_shape[0]-overhead)//timesteps
+            model_kwargs['num_dim'] = num_dim
+            model_kwargs['overhead'] = overhead
+            model_kwargs['num_objs'] = num_joints
+            model_kwargs['object_shape'] = object_shape
+            models_kwargs.append(model_kwargs)
     
     train_kwargs['drop_rate'] = drop_rate
+
+    for mod_kwargs in models_kwargs:
+        mod_kwargs['return_attention'] = False
+
     if verbose > 0:
         print("Creating model...")
-    model = get_fusion_model(num_joints, object_shape, output_size, seq_len, 
+        #todo object shape can vary
+    model = get_fusion_model(new_arch, output_size, seq_len,
         train_kwargs, models_kwargs, weights_filepaths, 
-        freeze_g_theta=freeze_g_theta, fuse_at_fc1=fuse_at_fc1)
+        freeze_g_theta=freeze_g_theta, fuse_at_fc1=fuse_at_fc1, avg_at_end=avg_at_end)
     
     if initial_weights is not None:
         model.load_weights(initial_weights)

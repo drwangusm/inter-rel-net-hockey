@@ -361,6 +361,7 @@ def train_rn(output_path, dataset_name, model_kwargs, data_kwargs,
         print("Creating model...")
 
     if(model_kwargs['rel_type'] == 'joint_stream' or model_kwargs['rel_type'] == 'temp_stream'):
+        #this parameter is named num_joints but in fact it can be joint or frame
         num_joints = len(X_train)
 
     model = get_model(num_objs=num_joints, object_shape=object_shape, 

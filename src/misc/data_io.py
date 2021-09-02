@@ -582,7 +582,7 @@ def get_data(gt_split, pose_style, timesteps=16, skip_timesteps=None,
         # Separate timesteps and dimension axis
         new_x = new_x.reshape((new_x.shape[0], new_x.shape[1], timesteps, num_dim))
 
-        # Separate joints of each person into two arrays
+        # Separate joints of each person into two arraysuse_data_gen
         p1_joints = new_x[0:new_x.shape[0]//2]
         p2_joints = new_x[new_x.shape[0]//2:new_x.shape[0]]
 
@@ -619,7 +619,7 @@ def get_data(gt_split, pose_style, timesteps=16, skip_timesteps=None,
 
         if arch != 'joint_temp_fused':
             X = temp_stream
-
+    #todo changes here
     if arch == 'joint_temp_fused':
         return ([joint_stream, temp_stream], Y)
 

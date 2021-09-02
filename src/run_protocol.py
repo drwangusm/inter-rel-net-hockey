@@ -39,7 +39,7 @@ def load_args():
         help="list of folds to run",
         nargs='*')
     ap.add_argument('-F', '--fusion-mode',
-        help='Mode to perform the fusion.',
+        help='Mode to perform the fusion',
         choices=['middle','late'],
         type=str)
     ap.add_argument('-s','--seqs-eval',
