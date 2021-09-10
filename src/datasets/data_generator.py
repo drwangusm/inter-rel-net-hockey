@@ -57,7 +57,7 @@ class DataGenerator(Sequence):
             seqs_mapping_file = 'seqs_mapping-subset_{}-fold_{}-timesteps_{}-{}-seq_step_{}.csv'.format(
                 subset, dataset_fold, data_kwargs['timesteps'],
                 data_kwargs['skip_timesteps'], data_kwargs['seq_step'])
-            seqs_mapping_filepath = dataset.DATA_DIR + 'seqs_mapping/' + seqs_mapping_file
+            seqs_mapping_filepath = os.path.join(dataset.DATA_DIR, 'seqs_mapping', seqs_mapping_file)
                 
             if os.path.exists(seqs_mapping_filepath):
                 type_index = type(self.ground_truth.index[0])
