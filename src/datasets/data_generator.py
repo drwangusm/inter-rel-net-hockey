@@ -58,7 +58,7 @@ class DataGenerator(Sequence):
                 subset, dataset_fold, data_kwargs['timesteps'],
                 data_kwargs['skip_timesteps'], data_kwargs['seq_step'])
             seqs_mapping_filepath = os.path.join(dataset.DATA_DIR, 'seqs_mapping', seqs_mapping_file)
-                
+            os.makedirs(os.path.join(dataset.DATA_DIR, 'seqs_mapping'), exist_ok=True)
             if os.path.exists(seqs_mapping_filepath):
                 type_index = type(self.ground_truth.index[0])
                 seqs_mapping = np.genfromtxt(seqs_mapping_filepath, dtype='str')
