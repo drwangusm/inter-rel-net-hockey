@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import glob
+import os
 
 if 'SLURM_TMPDIR' in os.environ.keys():
     DATA_DIR = f'{os.environ["SLURM_TMPDIR"]}/nturgbd_skeletons'
@@ -17,8 +18,8 @@ else:
         ...
         S002C002P013R002A039.skeleton
         ...
-        
-    
+
+
     File Format:
         <number of frames>
         frame 1 info:
@@ -54,42 +55,42 @@ def get_ground_truth(data_dir=DATA_DIR, only_mutual=True, only_non_mutual=False)
     ground_truth = pd.read_csv(data_dir+'/descs.csv', index_col=False, header=None).T
     ground_truth.columns = ['setup','camera','subject','duplicate','action',
         'start_frame_pt','end_frame_pt',]
-    
+
     if only_mutual:
         ground_truth = ground_truth[ground_truth.action >= 50]
     elif only_non_mutual:
         ground_truth = ground_truth[ground_truth.action < 50]
-    
+
     ground_truth.action = ground_truth.action - 1
     ground_truth['DATA_DIR'] = data_dir
-    
+
     return ground_truth
 
 def get_folds():
     folds = ['cross_subject','cross_view']
-    
+
     return folds
 
 def get_train(fold_num, **kwargs):
     from misc import data_io
     gt_split = get_train_gt(fold_num)
-    
+
     X, Y = data_io.get_data(gt_split, pose_style='NTU', **kwargs)
-    
+
     return X, Y
 
 def get_val(fold_num, **kwargs):
     from misc import data_io
     gt_split = get_val_gt(fold_num)
-    
+
     X, Y = data_io.get_data(gt_split, pose_style='NTU', **kwargs)
-    
+
     return X, Y
 
 def get_train_gt(fold_num):
     only_mutual = ('_all' not in fold_num)
     fold_num = fold_num.replace('_all','')
-    
+
     ground_truth = get_ground_truth(only_mutual=only_mutual)
     if fold_num == 'cross_subject':
         gt_split = ground_truth[ground_truth.subject.isin(TRAIN_SUBJECTS)]
@@ -98,13 +99,13 @@ def get_train_gt(fold_num):
         gt_split = ground_truth[ground_truth.subject.isin(TRAIN_SUBJECTS)]
     elif fold_num == 'cross_view':
         gt_split = ground_truth[ground_truth.camera != 1]
-    
+
     return gt_split
 
 def get_val_gt(fold_num):
     only_mutual = ('_all' not in fold_num)
     fold_num = fold_num.replace('_all','')
-    
+
     ground_truth = get_ground_truth(only_mutual=only_mutual)
     if fold_num == 'cross_subject':
         gt_split = ground_truth[~ground_truth.subject.isin(TRAIN_SUBJECTS)]
@@ -113,6 +114,6 @@ def get_val_gt(fold_num):
         gt_split = ground_truth[~ground_truth.subject.isin(TRAIN_SUBJECTS)]
     elif fold_num == 'cross_view':
         gt_split = ground_truth[ground_truth.camera == 1]
-    
+
     return gt_split
 
