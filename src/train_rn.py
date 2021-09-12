@@ -18,6 +18,12 @@ from misc.utils import read_config
 
 from sklearn.metrics import classification_report, confusion_matrix
 
+# reduces GPU memory usage
+tf_config = tf.ConfigProto()
+tf_config.gpu_options.allow_growth = True
+s = tf.Session(config=tf_config)
+K.set_session(s)
+
 #%% Functions
 def load_args():
     ap = argparse.ArgumentParser(
