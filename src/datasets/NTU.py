@@ -2,7 +2,10 @@ import pandas as pd
 import numpy as np
 import glob
 
-DATA_DIR = '/usr/local/data02/faskari/inter-rel-net/data/ntu/'
+if 'SLURM_TMPDIR' in os.environ.keys():
+    DATA_DIR = f'{os.environ["SLURM_TMPDIR"]}/nturgbd_skeletons'
+else:
+    DATA_DIR = '/usr/local/data02/faskari/inter-rel-net/data/ntu/'
 
 """ Folder structure
     descs.csv

@@ -113,7 +113,11 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
         else:
             dataset_folds = list(map(int, folds))
     
-    base_path = '/usr/local/data02/faskari/inter-rel-net/models/{}/{}'.format(dataset_name, experiment_name)
+    if 'SLURM_TMPDIR' in os.environ.keys():
+        base_path = f"{os.environ['SLURM_TMPDIR']}/models/{dataset_name}/{experiment_name}"
+    else:
+        '/usr/local/data02/faskari/inter-rel-net/models/{}/{}'.format(dataset_name, experiment_name)
+
     print("Running for dataset:", dataset_name)
     print("Running for folds:", dataset_folds)
     print("Experiment name:", experiment_name)
