@@ -45,3 +45,25 @@ class RedirectModel(keras.callbacks.Callback):
 
     def on_train_end(self, logs=None):
         self.callback.on_train_end(logs=logs)
+
+
+class Evaluate(keras.callbacks.Callback):
+    def __init__(
+        self,
+        generator,
+        mode,
+        verbose=1
+    ):
+        """ Evaluate a given dataset using a given model at the end of every epoch during training.
+        """
+        self.generator       = generator
+        self.mode = mode
+        self.verbose         = verbose
+
+        super(Evaluate, self).__init__()
+
+    def on_epoch_end(self, epoch, logs=None):
+        print("\nevaluating model!\n")
+
+        metrics = self.model.evaluate_generator(self.generator, steps=None, max_queue_size=10, workers=8)
+        print(f'\n\nmetrics is {metrics}\n\n')
