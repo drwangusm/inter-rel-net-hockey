@@ -319,6 +319,9 @@ def train_rn(output_path, dataset_name, model_kwargs, data_kwargs,
     elif dataset_name == 'NTU':
         dataset = NTU
         use_data_gen = True # Unable to read all data at once, dataset too big.
+    elif dataset_name == 'NTU-V2':
+        dataset = NTU_V2
+        use_data_gen = True # Unable to read all data at once, dataset too big.
     
     if verbose > 0:
         print("Reading data...")
