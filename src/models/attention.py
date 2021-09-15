@@ -55,7 +55,7 @@ class IRNAttention(keras.layers.Layer):
 
 '''
 
-#this is transformer attention
+#this is transformer attention + self attention
 
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
@@ -121,7 +121,7 @@ class IRNAttention(keras.layers.Layer):
 
 
 '''
-#this is the second version of self-attention ==> doesn't work well
+#this is the second version of self-attention with dimesntion exapansion==> doesn't work well
 
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, **kwargs):
@@ -172,6 +172,8 @@ class IRNAttention(keras.layers.Layer):
     
 '''
 '''
+#this is the motion attention ==> worked well for temp no rel
+
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
         self.return_attention = return_attention
