@@ -155,7 +155,7 @@ Several key modifications were made to the original IRN Model. All parameters fo
 ## Configuration Options
 The model will revert to the default if the option is not specified in the configuration file.
 * `data` section
-	* `arch = 'joint' | 'temp'` - Default: None
+	* `arch = 'joint' | 'temp | joint_lstm | temp_lstm'` - Default: None
 		* This sets the architecture to use the new `joint` objects or `temp` objects. If this is set, the `rel_type` option in the `model` section must be set to `joint_stream` or `temp_stream` respectively. Removing this option can be used to test the original paper's models.
 * `model` section
 	* `rel_type = 'joint_stream' | 'temp_stream'`
