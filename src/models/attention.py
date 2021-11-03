@@ -55,7 +55,7 @@ class IRNAttention(keras.layers.Layer):
 
 '''
 
-#this is transformer attention + self attention
+#this is transformer attention: latest for parameter search
 
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
@@ -71,10 +71,16 @@ class IRNAttention(keras.layers.Layer):
             # self.projection_size = input_size[0][1] # size of joint object
             self.projection_size = 500
 
-        self.w1=self.add_weight(name="Att1", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
-        self.w2=self.add_weight(name="Att2", shape=(input_size[0][1], self.projection_size), initializer="normal")
+        # self.w1=self.add_weight(name="Att1", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
+        # self.w2=self.add_weight(name="Att2", shape=(input_size[0][1], self.projection_size), initializer="normal")
+        # # self.w3=self.add_weight(name="Att3", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
+        # self.w4=self.add_weight(name="Att4", shape=(self.projection_size, 1), initializer="normal")
+
+        initializer_l = tf.initializers.random_uniform(minval=-0.05, maxval=0.05, seed=None)
+        self.w1=self.add_weight(name="Att1", shape=(input_size[0][1], self.projection_size), initializer=initializer_l) #name property is useful for avoiding RuntimeError: Unable to create link.
+        self.w2=self.add_weight(name="Att2", shape=(input_size[0][1], self.projection_size), initializer=initializer_l)
         # self.w3=self.add_weight(name="Att3", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
-        self.w4=self.add_weight(name="Att4", shape=(self.projection_size, 1), initializer="normal")
+        self.w4=self.add_weight(name="Att4", shape=(self.projection_size, 1), initializer=initializer_l)
 
         super(IRNAttention, self).build(input_size)
 
@@ -85,11 +91,15 @@ class IRNAttention(keras.layers.Layer):
         key_n = inputs + 0
         values = inputs / 1
 
-        query = K.tanh(K.dot(query_n,self.w1))
-        key = K.tanh(K.dot(key_n,self.w2))
+        # query = K.tanh(K.dot(query_n,self.w1))
+        # key = K.tanh(K.dot(key_n,self.w2))
+        query = K.sigmoid(K.dot(query_n,self.w1))
+        key = K.sigmoid(K.dot(key_n,self.w2))
         temper = tf.sqrt(tf.cast(self.projection_size, dtype='float32'))
         attn1 = tf.matmul(query, tf.transpose(key, perm=[0,2,1])) /temper
         attn_nod = K.softmax(attn1, axis=2)
+        # attn_nod = K.print_tensor(attn_nod)
+        # K.get_value(attn_nod[0,0,0])
         attn = Dropout(0.1)(attn_nod)
         output = tf.matmul(attn, values)
         # sentence = K.sum(output, axis=1)
@@ -97,7 +107,9 @@ class IRNAttention(keras.layers.Layer):
         #here apply the self-attention mechansim we had before
         # e = K.tanh(K.dot(output,self.w3))
         #e2 = K.dot(e, self.w4)
-        e2 = K.tanh(K.dot(output,self.w4))
+        #e2 = K.tanh(K.dot(output,self.w4))
+        e2 = (K.dot(output,self.w4))
+        # e2 = K.relu(e22)
         a = K.softmax(e2, axis=1)
         new_output = inputs*a
         ##return the ouputs. 'a' is the set of attention weights
@@ -107,7 +119,7 @@ class IRNAttention(keras.layers.Layer):
 
 
         if self.return_attention:
-            return [sentence, attn]
+            return [sentence, attention]
         else:
             return (sentence)
 
@@ -121,7 +133,7 @@ class IRNAttention(keras.layers.Layer):
 
 
 '''
-#this is the second version of self-attention with dimesntion exapansion==> doesn't work well
+#this is the second version of self-attention ==> doesn't work well
 
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, **kwargs):
@@ -172,8 +184,6 @@ class IRNAttention(keras.layers.Layer):
     
 '''
 '''
-#this is the motion attention ==> worked well for temp no rel
-
 class IRNAttention(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
         self.return_attention = return_attention
