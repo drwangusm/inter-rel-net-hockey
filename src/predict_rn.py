@@ -1,7 +1,7 @@
 import numpy as np
 import argparse, sys, os, time
 import progressbar
-
+import random
 import tensorflow as tf
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -16,7 +16,9 @@ from misc.utils import read_config
 
 from math import pi, sqrt, exp
 
-
+random.seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
 #%% Functions
 def load_args():
     ap = argparse.ArgumentParser(
@@ -88,7 +90,8 @@ def predict_rn(weights_path, dataset_name, model_kwargs, data_kwargs,
         print("\t Predicting options")
         print("\t > Batch Size:", batch_size)
     
-    ####
+    ###
+
     if dataset_name == 'UT':
         dataset = UT
     elif dataset_name == 'SBU':

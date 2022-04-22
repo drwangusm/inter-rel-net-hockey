@@ -4,7 +4,7 @@ import glob
 
 from misc import data_io
 
-DATA_DIR = 'data/sbu/'
+DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
 
 """ Folder structure
 <set>/
@@ -32,6 +32,8 @@ FOLDS = [
 
 ACTIONS = ['Approaching','Departing','Kicking','Punching','Pushing','Hugging',
            'ShakingHands','Exchanging']
+
+np.random.seed(42)
 
 def get_ground_truth(data_dir=DATA_DIR):
     setname_lst, fold_lst, seq_lst, action_lst, path_lst = [], [], [], [], []

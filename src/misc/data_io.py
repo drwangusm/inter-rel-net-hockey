@@ -4,7 +4,7 @@ import json, glob
 import linecache
 import h5py
 
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 
 TORSO, LEFT_HAND, RIGHT_HAND, LEFT_LEG, RIGHT_LEG = 0,1,2,3,4
 
@@ -34,6 +34,7 @@ NTU_25_BODY_PARTS = ['MidHip','Middle_of_the_spine','Neck','Nose','LShoulder','L
 NTU_25_BODY_PARTS_COARSE = [TORSO, TORSO, TORSO, TORSO, LEFT_HAND, LEFT_HAND, LEFT_HAND, LEFT_HAND, RIGHT_HAND, RIGHT_HAND, RIGHT_HAND, RIGHT_HAND, LEFT_LEG, LEFT_LEG, LEFT_LEG, LEFT_LEG, RIGHT_LEG, RIGHT_LEG, RIGHT_LEG, RIGHT_LEG, TORSO, LEFT_HAND, LEFT_HAND, RIGHT_HAND, RIGHT_HAND]
 NTU_25_BODY_PARTS_COARSE_TEXT = ["TORSO", "TORSO", "TORSO", "TORSO", "LEFT_HAND", "LEFT_HAND", "LEFT_HAND", "LEFT_HAND", "RIGHT_HAND", "RIGHT_HAND", "RIGHT_HAND", "RIGHT_HAND", "LEFT_LEG", "LEFT_LEG", "LEFT_LEG", "LEFT_LEG", "RIGHT_LEG", "RIGHT_LEG", "RIGHT_LEG", "RIGHT_LEG", "TORSO", "LEFT_HAND", "LEFT_HAND", "RIGHT_HAND", "RIGHT_HAND"]
 
+np.random.seed(42)
 
 def filter_joints(person, selected_joints, joint_indexing=POSE_BODY_25_BODY_PARTS):
     joints_mask = np.isin(joint_indexing, selected_joints)

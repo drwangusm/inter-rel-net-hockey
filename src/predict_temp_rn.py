@@ -14,6 +14,10 @@ from datasets.data_generator import DataGeneratorSeq
 from misc.utils import read_config
 from models.temporal_rn import get_model, get_fusion_model
 
+random.seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
+
 def run_predict(model, verbose, val_generator):
     if verbose > 0:
         print("Starting predicting...")

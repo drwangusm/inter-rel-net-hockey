@@ -2,7 +2,7 @@ from keras.layers import Dense, Input, Dropout
 from keras.layers import LSTM, TimeDistributed, Lambda, Concatenate, Average
 from keras.models import Model
 from keras import backend as K
-from models.attention import IRNAttention
+from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionExtended, IRNAttentionMotion
 
 from . import rn
 
@@ -63,7 +63,7 @@ def create_relationships(rel_type, g_theta_model, temp_input, p1_joints, p2_join
 
         if use_attention:
             # Output may be tuple if return_attention is true, second element is attention vector
-            return IRNAttention(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
+            return IRNAttentionMLP(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
         else:
             rel_out = Average()(g_theta_outs)
 

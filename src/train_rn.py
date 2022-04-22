@@ -6,9 +6,9 @@ import tensorflow as tf
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
 from keras import backend as K
 
 from datasets import UT, SBU, NTU, NTU_V2, YMJA
@@ -17,6 +17,8 @@ from models.rn import get_model, fuse_rn
 from misc.utils import read_config
 
 from sklearn.metrics import classification_report, confusion_matrix
+np.random.seed(42)
+tf.random.set_seed(42)
 
 #%% Functions
 def load_args():
@@ -58,7 +60,7 @@ def load_args():
         help='batch size used to train')
     ap.add_argument('-G', '--gpus',
         type=int,
-        default=1,
+        default=0,
         help='number of gpus to use')
     ap.add_argument('-e', '--epochs',
         type=int,
@@ -100,37 +102,37 @@ class AuxModelCheckpoint(Callback):
 def set_callbacks(output_path, checkpoint_period, batch_size, use_earlyStopping=True, return_attention=False):
     callbacks_list = []
     
-    if return_attention:
-        monitor_acc = 'val_model_acc'
-    else:
-        monitor_acc = 'val_acc'
+    # if return_attention:
+    #     monitor_acc = 'val_model_acc'
+    # else:
+    monitor_acc = 'val_accuracy'
 
     checkpoint_filename = ("relnet_weights-temp.hdf5")
     filepath = os.path.join(output_path, checkpoint_filename)
     modelCheckpoint = ModelCheckpoint(filepath, verbose=0,
-                    save_best_only=True, monitor='val_loss',
-                    save_weights_only=True, period=checkpoint_period)
+                    save_best_only=True, monitor='val_loss', mode='min',
+                    save_weights_only=True, save_freq="epoch")
     callbacks_list.append(modelCheckpoint)
 
     auxModelCheckpoint = AuxModelCheckpoint(filepath)
     callbacks_list.append(auxModelCheckpoint)
     
     log_dir = output_path + '/logs'
-    tensorBoard = TensorBoard(log_dir, batch_size=batch_size, write_graph=False)
+    tensorBoard = TensorBoard(log_dir, write_graph=False)
     callbacks_list.append(tensorBoard)
     
     filepath = os.path.join(output_path, "relnet_weights-val_acc-temp.hdf5")
     modelCheckpoint_val_acc = ModelCheckpoint(filepath, verbose=0,
-                    save_best_only=True, monitor=monitor_acc,
-                    save_weights_only=True, period=checkpoint_period)
+                    save_best_only=True, monitor='val_accuracy', mode='max',
+                    save_weights_only=True, save_freq="epoch")
     callbacks_list.append(modelCheckpoint_val_acc)
     
     auxModelCheckpoint_val_acc = AuxModelCheckpoint(filepath)
     callbacks_list.append(auxModelCheckpoint_val_acc)
     
     if use_earlyStopping:
-        earlyStopping = EarlyStopping(monitor=monitor_acc, min_delta=0, patience=100, 
-            verbose=0)
+        earlyStopping = EarlyStopping(monitor='val_accuracy', min_delta=0, patience=100,
+            verbose=0, mode='max')
         callbacks_list.append(earlyStopping)
     csvLogger = CSVLogger(output_path + '/training.log', append=True)
     callbacks_list.append(csvLogger)
@@ -162,12 +164,12 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
     #todo check here
     if return_attention:
         model.compile(loss=['categorical_crossentropy', None], # Don't train attention
-                optimizer=Adam(lr=learning_rate),
+                optimizer=Adam(learning_rate=learning_rate),
                 metrics=['accuracy',recall_m, precision_m, f1_m],
                 )
     else:
         model.compile(loss='categorical_crossentropy',
-                optimizer=Adam(lr=learning_rate),
+                optimizer=Adam(learning_rate=learning_rate),
                 metrics=['accuracy',recall_m, precision_m, f1_m],
                 )
     
@@ -191,7 +193,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             print("Train num batches:", len(train_generator))
             print("Train steps:", steps_per_epoch)
 
-        fit_history = model.fit_generator(train_generator,
+        fit_history = model.fit(train_generator,
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             callbacks=callbacks_list,
@@ -207,7 +209,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             _, y_val = val_generator[batch_idx]
             Y_val += y_val.tolist()
 
-        Y_pred = model.predict_generator(val_generator, max_queue_size=10, workers=5, 
+        Y_pred = model.predict(val_generator, max_queue_size=10, workers=5,
             use_multiprocessing=True, verbose=verbose)
 
         if return_attention: # Unpack output if necessary
@@ -269,9 +271,9 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
                 csv_writer.writerow(row)
         csvfile.truncate()
 
-    max_acc = np.max(fit_history.history['acc'])
+    max_acc = np.max(fit_history.history['accuracy'])
     min_loss = np.min(fit_history.history['loss'])
-    val_max_acc = np.max(fit_history.history['val_acc'])
+    val_max_acc = np.max(fit_history.history['val_accuracy'])
     val_min_loss = np.min(fit_history.history['val_loss'])                                                          
     
     if verbose > 0:
@@ -544,8 +546,6 @@ def train_fused_rn(output_path, dataset_name, dataset_fold,
     
     return fit_history
 
-
-    
 #%% Main
 if __name__ == '__main__':
     args = vars(load_args())

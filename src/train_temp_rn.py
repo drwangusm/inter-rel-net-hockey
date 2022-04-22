@@ -2,8 +2,8 @@ import numpy as np
 import argparse, sys, os, time
 import progressbar
 
-from keras.optimizers import SGD
-from keras.optimizers import Adam
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger
     
 from datasets import UT, NTU_V2, SBU, NTU, YMJA
@@ -11,6 +11,8 @@ from datasets.data_generator import DataGeneratorSeq
 from models.temporal_rn import get_model, get_fusion_model
 from misc.utils import read_config
 from train_rn import set_callbacks, train_model
+
+np.random.seed(42)
 
 #%% Functions
 def load_args():

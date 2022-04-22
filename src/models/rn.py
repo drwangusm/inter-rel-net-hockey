@@ -1,7 +1,7 @@
 from keras.layers import Dense, Dropout, Concatenate, Input
 from keras.layers import Add, Maximum, Average, Subtract, Lambda
 from keras.models import Model
-from models.attention import IRNAttention
+from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionExtended, IRNAttentionMotion
 
 from keras import initializers
 
@@ -149,7 +149,7 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints, use_atte
 
         if use_attention:
             # Output may be tuple if return_attention is true, second element is attention vector
-            return IRNAttention(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
+            return IRNAttentionMotion(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
         else:
             rel_out = Average()(g_theta_outs)
 
@@ -208,7 +208,7 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints, use_atte
             # for object_j in p1_joints[idx:]:
                 g_theta_outs.append(g_theta_model([object_i, object_j]))
         if use_attention:
-            return IRNAttention(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
+            return IRNAttentionMotion(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
         else:
             rel_out = Average()(g_theta_outs)
     elif rel_type == 'p2_p2_all':

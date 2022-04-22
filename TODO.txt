@@ -1,0 +1,41 @@
+TAKS:
+
+1. run attention hyp-param opt on sub, ntu-v1, ntu-v2
+
+3. set up compute canada for runs.
+    a. setting env_var CUDA_VISIBLE_DEVICES="" PYTHONHASHSEED=0
+4. later: experiment with dist training
+5. later: integrate weight and biases
+6. combination of inter (or joints) and time (for frames)
+
+Done:
+
+1. what are the implemented attentions?
+    -IRNAttentionMLP, IRNAttentionTrans, IRNAttentionExtended, IRNAttentionMotion
+
+
+
+QUESTIONS?
+
+1. do all the attentions above run?
+    -IRNAttentionMotion ==> joint: ?? temp: ??
+
+2. implement physic based attention?
+    -complete the implementation
+
+
+Done:
+
+3. do they run properly?
+    -SBU joint rel att check
+    -SBU temp rel att check
+    
+4. can I set deterministic in keras?
+    -CUDA_VISIBLE_DEVICES="" PYTHONHASHSEED=0 python your_program.py
+    a. how long does running on cpu takes?
+ 
+1. do all the attentions above run?
+    -IRNAttentionMLP ==> joint: check  temp: check
+    -IRNAttentionTrans ==> joint: check  temp: check
+    -IRNAttentionExtended ==> joint: check  temp: check
+        *out of memory for rel!

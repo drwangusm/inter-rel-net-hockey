@@ -7,16 +7,16 @@ from keras.layers import Dropout
 import tensorflow.nn as nn
 import numpy as np
 
-'''
-#first version of attention model
-
-class IRNAttention(keras.layers.Layer):
+class IRNAttentionMLP(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, **kwargs):
         self.return_attention = return_attention
         self.projection_size = projection_size
         self.num_head = num_head
-        super(IRNAttention, self).__init__(**kwargs)
+        super(IRNAttentionMLP, self).__init__(**kwargs)
 
+    '''
+    att_weights = input -> w1 (-, proj_size) -> tanh -> w2 (proj_size, proj_size) -> softmax
+    '''
     def build(self, input_size):
         if self.projection_size is None:
             self.projection_size = input_size[0][1] # size of joint object
@@ -27,7 +27,7 @@ class IRNAttention(keras.layers.Layer):
         self.w1=self.add_weight(name="Att1", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
         self.w2=self.add_weight(name="Att2", shape=(self.projection_size, 1), initializer="normal")
 
-        super(IRNAttention, self).build(input_size)
+        super(IRNAttentionMLP, self).build(input_size)
 
     def call(self, inputs):
 
@@ -46,25 +46,35 @@ class IRNAttention(keras.layers.Layer):
             return (sentence)
 
     def get_config(self):
-        config = super(IRNAttention, self).get_config()
+        config = super(IRNAttentionMLP, self).get_config()
         config.update({"num_head": self.num_head,
                        "projection_size": self.projection_size,
                        "return_attention": self.return_attention})
         return config
 
 
-'''
-
 #this is transformer attention: latest for parameter search
 
-class IRNAttention(keras.layers.Layer):
+class IRNAttentionTrans(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
         self.return_attention = return_attention
         self.projection_size = projection_size
         self.num_head = num_head
         # self.motion = motion
 
-        super(IRNAttention, self).__init__(**kwargs)
+        super(IRNAttentionTrans, self).__init__(**kwargs)
+        '''
+        query_n = inputs * 1 (Q_i)
+        key_n = inputs + 0 (K_i)
+        values = inputs / 1 (V)
+        
+        Q -> dot(query_n * w1 (-, proj_size))
+        K -> dot(key_n * w2 (-, proj_size))
+        temper = sqrt(proj_size)
+        attn = Matmul(Q, K) -> softmax -< dropout
+        output= Matmul(att, V)
+        att_weights = dot(output, w4(proj_size, 1) -> softmax      
+        '''
 
     def build(self, input_size):
         if self.projection_size is None:
@@ -82,7 +92,7 @@ class IRNAttention(keras.layers.Layer):
         # self.w3=self.add_weight(name="Att3", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
         self.w4=self.add_weight(name="Att4", shape=(self.projection_size, 1), initializer=initializer_l)
 
-        super(IRNAttention, self).build(input_size)
+        super(IRNAttentionTrans, self).build(input_size)
 
     def call(self, inputs):
 
@@ -124,23 +134,24 @@ class IRNAttention(keras.layers.Layer):
             return (sentence)
 
     def get_config(self):
-        config = super(IRNAttention, self).get_config()
+        config = super(IRNAttentionTrans, self).get_config()
         config.update({"num_head": self.num_head,
                        "projection_size": self.projection_size,
                        "return_attention": self.return_attention})
         return config
-    
 
-
-'''
 #this is the second version of self-attention ==> doesn't work well
 
-class IRNAttention(keras.layers.Layer):
+class IRNAttentionExtended(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, **kwargs):
         self.return_attention = return_attention
         self.projection_size = projection_size
         self.num_head = num_head
-        super(IRNAttention, self).__init__(**kwargs)
+        super(IRNAttentionExtended, self).__init__(**kwargs)
+        '''
+        input (objects, dim_size) => concat objects
+        input -> w1 (-, proj_size) -> tanh -> w2 (proj_size, num_objs) -> softmax   
+        '''
 
     def build(self, input_size):
         self.num_obj = len(input_size)
@@ -154,7 +165,7 @@ class IRNAttention(keras.layers.Layer):
         self.w1=self.add_weight(name="Att1", shape=((input_size[0][1]*self.num_obj), self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
         self.w2=self.add_weight(name="Att2", shape=(self.projection_size, self.num_obj), initializer="normal")
 
-        super(IRNAttention, self).build(input_size)
+        super(IRNAttentionExtended, self).build(input_size)
 
     def call(self, inputs):
 
@@ -176,21 +187,22 @@ class IRNAttention(keras.layers.Layer):
             return (sentence)
 
     def get_config(self):
-        config = super(IRNAttention, self).get_config()
+        config = super(IRNAttentionExtended, self).get_config()
         config.update({"num_head": self.num_head,
                        "projection_size": self.projection_size,
                        "return_attention": self.return_attention})
         return config
-    
-'''
-'''
-class IRNAttention(keras.layers.Layer):
+
+class IRNAttentionMotion(keras.layers.Layer):
     def __init__(self, num_head=1, projection_size=None, return_attention=False, motion=None, **kwargs):
         self.return_attention = return_attention
         self.projection_size = projection_size
         self.num_head = num_head
         self.motion = motion
-        super(IRNAttention, self).__init__(**kwargs)
+        super(IRNAttentionMotion, self).__init__(**kwargs)
+        '''
+        attention_weights = softmax (motion)
+        '''
 
     def build(self, input_size):
         # if self.projection_size is None:
@@ -202,7 +214,7 @@ class IRNAttention(keras.layers.Layer):
         # self.w1=self.add_weight(name="Att1", shape=(input_size[0][1], self.projection_size), initializer="normal") #name property is useful for avoiding RuntimeError: Unable to create link.
         # self.w2=self.add_weight(name="Att2", shape=(self.projection_size, 1), initializer="normal")
 
-        super(IRNAttention, self).build(input_size)
+        super(IRNAttentionMotion, self).build(input_size)
 
     def call(self, inputs):
 
@@ -223,10 +235,9 @@ class IRNAttention(keras.layers.Layer):
             return (sentence)
 
     def get_config(self):
-        config = super(IRNAttention, self).get_config()
+        config = super(IRNAttentionMotion, self).get_config()
         config.update({"num_head": self.num_head,
                        "projection_size": self.projection_size,
                        "return_attention": self.return_attention})
         return config
 
-'''
