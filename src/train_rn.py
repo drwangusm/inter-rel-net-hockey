@@ -6,9 +6,9 @@ import tensorflow as tf
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-from tensorflow.keras.optimizers import SGD
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
+from keras.optimizers import SGD
+from keras.optimizers import Adam
+from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
 from keras import backend as K
 
 from datasets import UT, SBU, NTU, NTU_V2, YMJA
@@ -18,7 +18,7 @@ from misc.utils import read_config
 
 from sklearn.metrics import classification_report, confusion_matrix
 np.random.seed(42)
-tf.random.set_seed(42)
+tf.random.set_random_seed(42)
 
 #%% Functions
 def load_args():
@@ -105,13 +105,13 @@ def set_callbacks(output_path, checkpoint_period, batch_size, use_earlyStopping=
     # if return_attention:
     #     monitor_acc = 'val_model_acc'
     # else:
-    monitor_acc = 'val_accuracy'
+    monitor_acc = 'val_acc'
 
     checkpoint_filename = ("relnet_weights-temp.hdf5")
     filepath = os.path.join(output_path, checkpoint_filename)
     modelCheckpoint = ModelCheckpoint(filepath, verbose=0,
                     save_best_only=True, monitor='val_loss', mode='min',
-                    save_weights_only=True, save_freq="epoch")
+                    save_weights_only=True, period=checkpoint_period)
     callbacks_list.append(modelCheckpoint)
 
     auxModelCheckpoint = AuxModelCheckpoint(filepath)
@@ -123,15 +123,15 @@ def set_callbacks(output_path, checkpoint_period, batch_size, use_earlyStopping=
     
     filepath = os.path.join(output_path, "relnet_weights-val_acc-temp.hdf5")
     modelCheckpoint_val_acc = ModelCheckpoint(filepath, verbose=0,
-                    save_best_only=True, monitor='val_accuracy', mode='max',
-                    save_weights_only=True, save_freq="epoch")
+                    save_best_only=True, monitor='val_acc', mode='max',
+                    save_weights_only=True, period=checkpoint_period)
     callbacks_list.append(modelCheckpoint_val_acc)
     
     auxModelCheckpoint_val_acc = AuxModelCheckpoint(filepath)
     callbacks_list.append(auxModelCheckpoint_val_acc)
     
     if use_earlyStopping:
-        earlyStopping = EarlyStopping(monitor='val_accuracy', min_delta=0, patience=100,
+        earlyStopping = EarlyStopping(monitor='val_acc', min_delta=0, patience=100,
             verbose=0, mode='max')
         callbacks_list.append(earlyStopping)
     csvLogger = CSVLogger(output_path + '/training.log', append=True)
@@ -164,13 +164,13 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
     #todo check here
     if return_attention:
         model.compile(loss=['categorical_crossentropy', None], # Don't train attention
-                optimizer=Adam(learning_rate=learning_rate),
-                metrics=['accuracy',recall_m, precision_m, f1_m],
+                optimizer=Adam(lr=learning_rate),
+                metrics=['acc',recall_m, precision_m, f1_m],
                 )
     else:
         model.compile(loss='categorical_crossentropy',
-                optimizer=Adam(learning_rate=learning_rate),
-                metrics=['accuracy',recall_m, precision_m, f1_m],
+                optimizer=Adam(lr=learning_rate),
+                metrics=['acc',recall_m, precision_m, f1_m],
                 )
     
     # Setting up Callbacks
@@ -193,7 +193,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             print("Train num batches:", len(train_generator))
             print("Train steps:", steps_per_epoch)
 
-        fit_history = model.fit(train_generator,
+        fit_history = model.fit_generator(train_generator,
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             callbacks=callbacks_list,
@@ -209,7 +209,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             _, y_val = val_generator[batch_idx]
             Y_val += y_val.tolist()
 
-        Y_pred = model.predict(val_generator, max_queue_size=10, workers=5,
+        Y_pred = model.predict_generator(val_generator, max_queue_size=10, workers=5,
             use_multiprocessing=True, verbose=verbose)
 
         if return_attention: # Unpack output if necessary
@@ -237,7 +237,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
     else:
         X_train, Y_train = train_data
         X_val, Y_val = val_data
-        fit_history = model.fit(X_train, Y_train,
+        fit_history = model.fit_generator(X_train, Y_train,
             batch_size=batch_size,
             validation_data=(X_val, Y_val),
             verbose=verbose,
@@ -271,9 +271,9 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
                 csv_writer.writerow(row)
         csvfile.truncate()
 
-    max_acc = np.max(fit_history.history['accuracy'])
+    max_acc = np.max(fit_history.history['acc'])
     min_loss = np.min(fit_history.history['loss'])
-    val_max_acc = np.max(fit_history.history['val_accuracy'])
+    val_max_acc = np.max(fit_history.history['val_acc'])
     val_min_loss = np.min(fit_history.history['val_loss'])                                                          
     
     if verbose > 0:
@@ -379,7 +379,7 @@ def train_rn(output_path, dataset_name, model_kwargs, data_kwargs,
     if 'return_attention' in model_kwargs:
         return_attention = model_kwargs['return_attention']
     
-    fit_history = train_model(model=model, verbose=verbose, learning_rate=learning_rate, 
+    fit_history = train_model(model=model, verbose=verbose, learning_rate=learning_rate,
         output_path=output_path, checkpoint_period=checkpoint_period, 
         batch_size=batch_size, epochs=epochs, use_data_gen=use_data_gen, 
         train_data=train_data, val_data=val_data, subsample_ratio=subsample_ratio, return_attention=return_attention)
@@ -539,7 +539,7 @@ def train_fused_rn(output_path, dataset_name, dataset_fold,
 
     data_len = None
     
-    fit_history = train_model(model=model, verbose=verbose, learning_rate=learning_rate, 
+    fit_history = train_model(model=model, verbose=verbose, lr=learning_rate,
         output_path=output_path, checkpoint_period=checkpoint_period, 
         batch_size=batch_size, epochs=epochs, use_data_gen=use_data_gen, 
         train_data=train_data, val_data=val_data, subsample_ratio=subsample_ratio, data_len=data_len)

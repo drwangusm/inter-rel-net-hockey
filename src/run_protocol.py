@@ -80,7 +80,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
 
     random.seed(42)
     np.random.seed(42)
-    tf.random.set_seed(42)
+    tf.random.set_random_seed(42)
 
     if fusion_mode is None:
         data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)
@@ -90,7 +90,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
             for weights_filepath in fusion_kwargs['weights_filepaths'] ]
         fusion_kwargs.pop('weights_filepaths', None)
         criteria = fusion_kwargs.pop('criteria', 
-            'val_loss' if fusion_mode == 'middle' else 'val_accuracy')
+            'val_loss' if fusion_mode == 'middle' else 'val_acc')
         data_kwargs, model_kwargs, _ = read_config(
             fusion_kwargs['config_filepaths'][0])
     
@@ -212,12 +212,12 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
                 hist_df = parse_fit_history(fit_history)
                 hist_df.to_csv(output_path+'/fit_history.csv', index=False)
             
-            sorted_hist_df = hist_df.sort_values(['val_accuracy', 'val_loss'],
+            sorted_hist_df = hist_df.sort_values(['val_acc', 'val_loss'],
                 ascending=[False, True])
             best_epoch = sorted_hist_df.iloc[0]
             print("> {}: ACC: {:.2%} Loss: {:.4f} - MAX val_accuracy: {:.2%} val_loss: {:.4f}".format(
-                rerun_idx, best_epoch.accuracy, best_epoch.loss,
-                best_epoch.val_accuracy, best_epoch.val_loss))
+                rerun_idx, best_epoch.acc, best_epoch.loss,
+                best_epoch.val_acc, best_epoch.val_loss))
             best_epochs.append(best_epoch)
             
             if seqs_eval:
@@ -241,7 +241,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
                         print("Seqs eval not implemented for fusion_mode:", fusion_mode)
                         val_acc = -1
                     
-                    val_acc_df = pd.DataFrame.from_dict({'val_accuracy': [val_acc]})
+                    val_acc_df = pd.DataFrame.from_dict({'val_acc': [val_acc]})
                     val_acc_df.to_csv(pooled_val_acc_filepath, index=False)
             
                 val_acc_series = val_acc_df.iloc[0]
@@ -252,7 +252,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
         summary_fold.index.name = 'rerun'
         summary_fold.to_csv(fold_path+'/summary.csv')
         
-        sorted_summary_fold = summary_fold.sort_values(['val_accuracy', 'val_loss'],
+        sorted_summary_fold = summary_fold.sort_values(['val_acc', 'val_loss'],
             ascending=[False, True])
         best_fold = sorted_summary_fold.iloc[0]
         fold_results.append(best_fold)
@@ -278,7 +278,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
     print("\nSummary for Dataset, Folds, Experiment:")
     print("> {} | {} | {}".format(dataset_codename, dataset_folds, experiment_name))
     pretty_print_stats(summary_df)
-    print("Val ACC Mean: {:.2%} Std: {:.4f}".format(mean.val_accuracy, std.val_accuracy))
+    print("Val ACC Mean: {:.2%} Std: {:.4f}".format(mean.val_acc, std.val_acc))
     
     if seqs_eval:
         summary_seqs = pd.concat(fold_results_seqs, axis=1).transpose().reset_index(drop=True)

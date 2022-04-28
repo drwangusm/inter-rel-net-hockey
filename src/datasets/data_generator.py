@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from tensorflow.keras.utils import Sequence
+from keras.utils import Sequence
 
 from datasets import UT, SBU, NTU, NTU_V2, YMJA
 from misc.data_io import get_data

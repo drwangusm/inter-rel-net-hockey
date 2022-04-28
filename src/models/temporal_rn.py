@@ -2,7 +2,7 @@ from keras.layers import Dense, Input, Dropout
 from keras.layers import LSTM, TimeDistributed, Lambda, Concatenate, Average
 from keras.models import Model
 from keras import backend as K
-from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionExtended, IRNAttentionMotion
+from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionMotion
 
 from . import rn
 

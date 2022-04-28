@@ -18,7 +18,7 @@ from math import pi, sqrt, exp
 
 random.seed(42)
 np.random.seed(42)
-tf.random.set_seed(42)
+tf.random.set_random_seed(42)
 #%% Functions
 def load_args():
     ap = argparse.ArgumentParser(

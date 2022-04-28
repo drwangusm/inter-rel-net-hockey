@@ -1,7 +1,7 @@
 from keras.layers import Dense, Dropout, Concatenate, Input
 from keras.layers import Add, Maximum, Average, Subtract, Lambda
 from keras.models import Model
-from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionExtended, IRNAttentionMotion
+from models.attention import IRNAttentionMLP, IRNAttentionTrans, IRNAttentionMotion
 
 from keras import initializers
 
@@ -140,8 +140,9 @@ def fuse_rel_models(fuse_type, person1_joints, person2_joints, **g_theta_kwargs)
         raise ValueError("Invalid fuse_type:", fuse_type)
     return x
 
-def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints, use_attention=False, use_relations=True, attention_proj_size=None, return_attention=False):
+def create_relationships(arch_rel_type, rel_type, g_theta_model, p1_joints, p2_joints, use_attention=False, use_relations=True, attention_proj_size=None, return_attention=False):
     g_theta_outs = []
+    temp_motion = []
 
     if not use_relations:
         for object_i in p1_joints:
@@ -207,8 +208,11 @@ def create_relationships(rel_type, g_theta_model, p1_joints, p2_joints, use_atte
             for object_j in p1_joints[idx+1:]:
             # for object_j in p1_joints[idx:]:
                 g_theta_outs.append(g_theta_model([object_i, object_j]))
+                if arch_rel_type == 'temp_stream':
+                    motion = K.sqrt(K.sum((object_i - object_j) ** 2, axis=-1, keepdims=True))
+                    temp_motion.append(motion)
         if use_attention:
-            return IRNAttentionMotion(projection_size=attention_proj_size, return_attention=return_attention)(g_theta_outs)
+            return IRNAttentionMotion(projection_size=attention_proj_size, return_attention=return_attention, motion=temp_motion)(g_theta_outs)
         else:
             rel_out = Average()(g_theta_outs)
     elif rel_type == 'p2_p2_all':
@@ -269,11 +273,12 @@ def f_phi(num_objs, object_shape, rel_type, kernel_init, fc_units=[500,100,100],
             augmented_stream_objects.append(augmented_stream_input)
 
         # G theta does not change, object size does not change
-        g_theta_model = g_theta(object_shape, kernel_init=kernel_init, 
+        #todo here
+        g_theta_model = g_theta(object_shape, kernel_init=kernel_init,
             drop_rate=drop_rate, use_relations=use_relations, model_name="g_theta_"+rel_type, **g_theta_kwargs)
         
         # Create relationships between all joint stream objects (similar to intra)
-        x = create_relationships('p1_p1_all', g_theta_model, 
+        x = create_relationships(rel_type, 'p1_p1_all', g_theta_model,
             augmented_stream_objects, None, use_attention=use_attention, use_relations=use_relations, attention_proj_size=projection_size, return_attention=return_attention)
 
         # Must unpack attention from x

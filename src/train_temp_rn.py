@@ -2,8 +2,8 @@ import numpy as np
 import argparse, sys, os, time
 import progressbar
 
-from tensorflow.keras.optimizers import SGD
-from tensorflow.keras.optimizers import Adam
+from keras.optimizers import SGD
+from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger
     
 from datasets import UT, NTU_V2, SBU, NTU, YMJA

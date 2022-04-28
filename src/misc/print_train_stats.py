@@ -108,14 +108,14 @@ def pretty_print_stats(stats_df, short_version=False, seqs_eval=False):
     acc_tpl = "{:.2%}".format
     loss_tpl = "{:.4f}".format
     epoc_tpl = "{:.0f}".format
-    print_order = ['accuracy','loss','val_accuracy','val_loss','epoch']
+    print_order = ['acc','loss','val_acc','val_loss','epoch']
     
     if short_version:
-        print_order = ['val_accuracy','val_loss']
+        print_order = ['val_acc','val_loss']
         stats_df = stats_df[stats_df.index == 'mean']
     
     if seqs_eval:
-        print_order = ['val_accuracy']
+        print_order = ['val_acc']
     
     print(stats_df[print_order].to_string(
         formatters=[acc_tpl,loss_tpl,acc_tpl,loss_tpl,epoc_tpl]))
@@ -127,7 +127,7 @@ def print_train_stats(summary_dir, criteria=None, update=False, seqs_eval=False)
         summary_filename = '/summary-pooled_val_acc.csv'
     
     if not os.path.exists(summary_dir+summary_filename):
-        criteria = 'val_accuracy'
+        criteria = 'val_acc'
 
     if criteria is None:
         summary_df = pd.read_csv(summary_dir+summary_filename, index_col=False)
@@ -143,8 +143,8 @@ def print_train_stats(summary_dir, criteria=None, update=False, seqs_eval=False)
     
     if update:
         summary_df.to_csv(summary_dir+summary_filename)
-    
-    max = summary_df.loc[summary_df['val_accuracy'].idxmax()].rename('max')
+
+    max = summary_df.loc[summary_df['val_acc'].idxmax()].rename('max')
     mean = summary_df.mean().rename('mean')
     std = summary_df.std().rename('std')
     stats = pd.concat([max,mean,std], axis=1).T
