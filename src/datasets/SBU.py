@@ -4,7 +4,12 @@ import glob
 
 from misc import data_io
 
-DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
+if 'SLURM_TMPDIR' in os.environ.keys():
+    DATA_DIR = os.path.join(os.environ["SLURM_TMPDIR"], "sbu")
+else:
+    DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
+
+#DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
 
 """ Folder structure
 <set>/

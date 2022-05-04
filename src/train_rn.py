@@ -19,6 +19,10 @@ from misc.utils import read_config
 from sklearn.metrics import classification_report, confusion_matrix
 np.random.seed(42)
 tf.random.set_random_seed(42)
+tf_config = tf.ConfigProto()
+tf_config.gpu_options.allow_growth = True
+s = tf.Session(config=tf_config)
+K.set_session(s)
 
 #%% Functions
 def load_args():
@@ -60,7 +64,7 @@ def load_args():
         help='batch size used to train')
     ap.add_argument('-G', '--gpus',
         type=int,
-        default=0,
+        default=1,
         help='number of gpus to use')
     ap.add_argument('-e', '--epochs',
         type=int,
@@ -199,7 +203,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             callbacks=callbacks_list,
             validation_data=val_generator,
             validation_steps=validation_steps,
-            workers=0, max_queue_size=10, # Default is 10
+            workers=6, max_queue_size=10, # Default is 10
             use_multiprocessing=True,
             verbose=verbose)
         
