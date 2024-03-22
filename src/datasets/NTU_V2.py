@@ -4,7 +4,7 @@ import glob
 
 from . import NTU
 
-DATA_DIR = '/usr/local/data02/faskari/inter-rel-net/data/ntu2/'
+DATA_DIR = '/demo/inter-rel-net-hockey/data/ntu-rgbd-v2'
 
 """ Folder structure
     descs.csv
