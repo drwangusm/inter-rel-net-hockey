@@ -6,10 +6,10 @@ import tensorflow as tf
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
-from keras import backend as K
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
+from tensorflow.keras import backend as K
 
 from datasets import UT, SBU, NTU, NTU_V2, YMJA
 from datasets.data_generator import DataGenerator
@@ -191,7 +191,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             print("Train num batches:", len(train_generator))
             print("Train steps:", steps_per_epoch)
 
-        fit_history = model.fit_generator(train_generator,
+        fit_history = model.fit(train_generator,
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             callbacks=callbacks_list,
@@ -207,7 +207,7 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
             _, y_val = val_generator[batch_idx]
             Y_val += y_val.tolist()
 
-        Y_pred = model.predict_generator(val_generator, max_queue_size=10, workers=5, 
+        Y_pred = model.predict(val_generator, max_queue_size=10, workers=5, 
             use_multiprocessing=True, verbose=verbose)
 
         if return_attention: # Unpack output if necessary
@@ -269,9 +269,9 @@ def train_model(model, verbose, learning_rate, output_path, checkpoint_period,
                 csv_writer.writerow(row)
         csvfile.truncate()
 
-    max_acc = np.max(fit_history.history['acc'])
+    max_acc = np.max(fit_history.history['accuracy'])
     min_loss = np.min(fit_history.history['loss'])
-    val_max_acc = np.max(fit_history.history['val_acc'])
+    val_max_acc = np.max(fit_history.history['val_accuracy'])
     val_min_loss = np.min(fit_history.history['val_loss'])                                                          
     
     if verbose > 0:

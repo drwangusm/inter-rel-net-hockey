@@ -4,7 +4,7 @@ import json, glob
 import linecache
 import h5py
 
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 
 TORSO, LEFT_HAND, RIGHT_HAND, LEFT_LEG, RIGHT_LEG = 0,1,2,3,4
 

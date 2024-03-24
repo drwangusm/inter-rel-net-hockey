@@ -5,7 +5,7 @@ read the skeleton file for validation set of fold 4 and see if there are 15 join
 import numpy as np
 import os
 
-main_path = r"/usr/local/data02/faskari/inter-rel-net/data/sbu/"
+main_path = r"/demo/inter-rel-net-hockey/data/sbu"
 # skl = np.loadtxt(main_path,delimiter=",")
 # print('done')
 

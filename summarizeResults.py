@@ -63,7 +63,7 @@ if __name__ == "__main__":
                         val_f1 = []
                         for idx, row in enumerate(reader):
                             if (idx == 0):
-                                val_acc_ind = row.index("val_acc")
+                                val_acc_ind = row.index("val_accuracy")
                                 val_recall_ind = row.index("val_recall_m")
                                 val_precision_ind = row.index("val_precision_m")
                                 val_f1_ind = row.index("val_f1_m")
