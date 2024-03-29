@@ -80,7 +80,7 @@ def run_protocol(experiment_name, config_filepath, dataset_name, num_reruns=1,
 
     random.seed(42)
     np.random.seed(42)
-    tf.random.set_random_seed(42)
+    tf.random.set_seed(42)
 
     if fusion_mode is None:
         data_kwargs, model_kwargs, train_kwargs = read_config(config_filepath)

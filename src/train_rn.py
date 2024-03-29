@@ -6,10 +6,11 @@ import tensorflow as tf
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
-from keras import backend as K
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, CSVLogger, Callback
+# from tensorflow.keras import backend as K
+from tensorflow.compat.v1.keras import backend as K
 
 from datasets import UT, SBU, NTU, NTU_V2, YMJA
 from datasets.data_generator import DataGenerator
@@ -18,10 +19,12 @@ from misc.utils import read_config
 
 from sklearn.metrics import classification_report, confusion_matrix
 np.random.seed(42)
-tf.random.set_random_seed(42)
-tf_config = tf.ConfigProto()
+tf.random.set_seed(42)
+tf_config = tf.compat.v1.ConfigProto()
 tf_config.gpu_options.allow_growth = True
-s = tf.Session(config=tf_config)
+
+s = tf.compat.v1.Session(config=tf_config)
+
 K.set_session(s)
 
 #%% Functions

@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 import glob
-
+import os
 from misc import data_io
 
 if 'SLURM_TMPDIR' in os.environ.keys():
     DATA_DIR = os.path.join(os.environ["SLURM_TMPDIR"], "sbu")
 else:
-    DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
+    DATA_DIR = '/demo/inter-rel-net-hockey/data/sbu'
 
 #DATA_DIR = '/home/fay/Desktop/inter-rel-net/data/sbu'
 
