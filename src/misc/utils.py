@@ -38,7 +38,7 @@ def find_best_weights(base_path, criteria='val_loss', verbose=0):
         print("Best weights stats:")
         best_rerun_df = best_rerun.to_frame().transpose()
         best_rerun_df = best_rerun_df.astype(
-            {'acc': 'float', 'loss': 'float', 'val_acc': 'float', 'val_loss': 'float'})
+            {'accuracy': 'float', 'loss': 'float', 'val_accuracy': 'float', 'val_loss': 'float'})
         pretty_print_stats(best_rerun_df)
 
     return weights_path

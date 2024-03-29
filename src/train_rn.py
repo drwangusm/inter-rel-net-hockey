@@ -3,6 +3,10 @@ import argparse, sys, os, time
 import csv
 
 import tensorflow as tf
+
+import warnings
+warnings.filterwarnings('ignore')
+
 if int(tf.__version__.split('.')[1]) >= 14:
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
@@ -103,7 +107,7 @@ def set_callbacks(output_path, checkpoint_period, batch_size, use_earlyStopping=
     if return_attention:
         monitor_acc = 'val_model_acc'
     else:
-        monitor_acc = 'val_acc'
+        monitor_acc = 'val_accuracy'
 
     checkpoint_filename = ("relnet_weights-temp.hdf5")
     filepath = os.path.join(output_path, checkpoint_filename)

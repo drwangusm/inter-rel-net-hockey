@@ -5,7 +5,11 @@ from models.attention import IRNAttention
 
 from keras import initializers
 
+import warnings
+
 from keras import backend as K
+
+warnings.filterwarnings('ignore')
 
 def get_relevant_kwargs(kwargs, func):
     from inspect import signature

@@ -26,7 +26,6 @@ python3 src/run_protocol.py IRN_joint_att_no_rel configs/YMJA/IRN_joint_stream_a
 python3 src/run_protocol.py IRN_temp_att_no_rel configs/YMJA/IRN_temporal_stream_att_no_rel.cfg YMJA -n 3
 python3 src/run_protocol.py IRN_two_stream_att_no_rel configs/YMJA/IRN_two_stream_att_no_rel.cfg YMJA -F middle -n 3
 
-
 python3 src/run_protocol.py IRN_two_stream_avg configs/YMJA/IRN_two_stream_avg.cfg YMJA -F middle -n 3
 python3 src/run_protocol.py IRN_two_stream_att_avg configs/YMJA/IRN_two_stream_att_avg.cfg YMJA -F middle -n 3
 python3 src/run_protocol.py IRN_two_stream_att_no_rel_avg configs/YMJA/IRN_two_stream_att_no_rel_avg.cfg YMJA -F middle -n 3
