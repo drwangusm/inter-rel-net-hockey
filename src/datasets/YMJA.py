@@ -6,7 +6,7 @@ import glob
 
 from misc import data_io
 
-DATA_DIR = 'data/YMJA/'
+DATA_DIR = '/usr/local/inter-rel-net-hockey/data02/YMJA/'
 
 """ Folder structure
 action/

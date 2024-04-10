@@ -3,7 +3,7 @@ import numpy as np
 
 from misc import data_io
 
-DATA_DIR = 'data/ut-interaction/'
+DATA_DIR = '/usr/local/inter-rel-net-hockey/data02/ut-interaction/'
 
 """ Folder structure
 <'set1' or 'set2'>/keypoints

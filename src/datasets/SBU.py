@@ -4,7 +4,7 @@ import glob
 
 from misc import data_io
 
-DATA_DIR = 'data/sbu/'
+DATA_DIR = '/usr/local/inter-rel-net-hockey/data02/sbu/'
 
 """ Folder structure
 <set>/
